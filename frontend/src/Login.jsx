@@ -120,6 +120,10 @@ const CSS = `
 
   #fs-scene-wrap { position:relative; flex:1; min-height:360px; margin:8px -56px 0; cursor:grab; }
   #fs-scene { position:absolute; inset:0; width:100%; height:100%; display:block; }
+  .fs-paper { position:absolute; inset:0; margin:auto; width:min(55%,260px); height:150px; border-radius:8px; overflow:hidden; background:#edf2ff; transform:rotate(-5deg); box-shadow:0 12px 40px #04091b; }
+  .fs-paper strong { display:block; background:#1d4ed8; padding:8px 14px; color:white; }
+  .fs-paper i { display:block; margin:14px; height:8px; background:#94a3b8; width:72%; }
+  .fs-paper i:nth-child(3) { width:55%; background:#2563eb; }
   #fs-scene-wrap.grabbing { cursor:grabbing; }
 
   .fs-stations { position:relative; z-index:2; display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
@@ -133,19 +137,6 @@ const CSS = `
   .fs-caption b { color:#fff; font-weight:600; }
   .fs-footer-label { position:relative; z-index:2; margin-top:22px; font-family:"JetBrains Mono",monospace; font-size:12px; letter-spacing:.3em; color:#aab5d4; text-transform:uppercase; }
 
-  /* Chat chip */
-  .fs-chip { position:absolute; right:28px; bottom:26px; z-index:6; display:flex; align-items:center; gap:14px; padding:12px 22px 12px 18px; border-radius:16px; background:rgba(10,14,28,.85); border:1px solid rgba(255,255,255,.12); box-shadow:0 18px 40px -16px rgba(0,0,0,.8); cursor:pointer; transition:transform .3s; }
-  .fs-chip:hover { transform:translateY(-4px); }
-  .fs-chip .dot-live { width:9px; height:9px; border-radius:50%; background:#22c55e; animation:fs-ping 1.8s infinite; flex-shrink:0; }
-  @keyframes fs-ping { 70%{box-shadow:0 0 0 9px rgba(34,197,94,0)} 100%{box-shadow:0 0 0 0 rgba(34,197,94,0)} }
-  .fs-chip strong { display:block; font-size:16px; font-weight:600; }
-  .fs-chip small { color:#9aa6c4; font-size:12.5px; }
-
-  .fs-chat-panel { position:absolute; right:28px; bottom:96px; width:300px; z-index:7; background:#fff; color:var(--ink); border-radius:18px; padding:18px; box-shadow:0 30px 60px -20px rgba(0,0,0,.6); transform-origin:bottom right; transform:scale(.9) translateY(10px); opacity:0; pointer-events:none; transition:all .35s cubic-bezier(.2,.7,.2,1); }
-  .fs-chat-panel.open { transform:none; opacity:1; pointer-events:auto; }
-  .fs-chat-panel p { font-size:14px; line-height:1.5; color:var(--muted); }
-  .fs-chat-panel p b { color:var(--ink); }
-
   /* Responsive */
   @media (max-width:900px) {
     .fs-login-root { grid-template-columns:1fr; }
@@ -153,10 +144,8 @@ const CSS = `
     #fs-scene-wrap { min-height:300px; margin:8px -20px 0; }
     .fs-hero { margin-top:32px; }
     .fs-stations { grid-template-columns:1fr; }
-    .fs-chip { right:14px; bottom:14px; }
-    .fs-chat-panel { right:14px; left:14px; width:auto; bottom:80px; }
   }
-  @media (prefers-reduced-motion:reduce) { *,*::before,*::after { animation:none!important; transition:none!important; } }
+  @media (prefers-reduced-motion:reduce) { .fs-login-root *, .fs-login-root *::before, .fs-login-root *::after { animation:none!important; transition:none!important; } .fs-hero .word { opacity:1; transform:none; } }
 `
 
 function getRoleClass(role) {
@@ -171,263 +160,63 @@ function getRoleLabel(role) {
 }
 
 /* ─── Showcase / 3D right panel ─── */
+const stages = [
+  ['Official source', 'Check a product clause against its public HDFC Bank source.'],
+  ['Draft', 'Use the source and approved wording to draft a customer message.'],
+  ['Review', 'Compare the message with its HDFC Bank source before approval.'],
+]
+
 function Showcase() {
   const wrapRef = useRef(null)
   const canvasRef = useRef(null)
-  const captionRef = useRef(null)
-  const [chatOpen, setChatOpen] = useState(false)
+  const activeRef = useRef(0)
+  const [active, setActive] = useState(0)
+  const [interactive, setInteractive] = useState(false)
+  const [manual, setManual] = useState(false)
+
+  function chooseStage(index) {
+    activeRef.current = index
+    setActive(index)
+    setManual(true)
+  }
 
   useEffect(() => {
-    if (!window.THREE) return
-    const THREE = window.THREE
-    const wrap = wrapRef.current
-    const canvas = canvasRef.current
-    const captionEl = captionRef.current
-    const stationBtns = [...wrap.closest('.fs-showcase').querySelectorAll('.fs-station-btn')]
-
-    const CAPTIONS = [
-      '<b>Official source.</b> The product clause is pulled from the approved document library, with its version and date attached.',
-      '<b>Draft.</b> The assistant writes the customer message using only verified wording from the source above.',
-      '<b>Review.</b> Two reviewers must approve. Each sees the source clause beside the draft before they sign off.'
-    ]
-
-    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true })
-    renderer.setClearColor(0x000000, 0)
-    const scene = new THREE.Scene()
-    scene.fog = new THREE.Fog(0x0b1020, 9, 18)
-    const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 100)
-    camera.position.set(0, 0.4, 8.6)
-
-    scene.add(new THREE.AmbientLight(0xffffff, 0.55))
-    const key = new THREE.DirectionalLight(0xdbe7ff, 0.9)
-    key.position.set(3, 5, 6)
-    scene.add(key)
-    const rim = new THREE.PointLight(0x3b82f6, 2.2, 14)
-    rim.position.set(-3, -2, 3)
-    scene.add(rim)
-
-    const curve = new THREE.CatmullRomCurve3([
-      new THREE.Vector3(-4.6, -0.3, -0.6),
-      new THREE.Vector3(-2.2, 0.9, 0.5),
-      new THREE.Vector3(0, -0.2, 0.2),
-      new THREE.Vector3(2.2, 0.8, -0.4),
-      new THREE.Vector3(4.6, -0.2, 0.4)
-    ])
-    const tube = new THREE.Mesh(
-      new THREE.TubeGeometry(curve, 240, 0.012, 8, false),
-      new THREE.MeshBasicMaterial({ color: 0x93b5ff, transparent: true, opacity: 0.35 })
-    )
-    scene.add(tube)
-
-    const grid = new THREE.GridHelper(26, 26, 0x3b5bdb, 0x1e2a55)
-    grid.position.y = -2.4
-    grid.material.transparent = true
-    grid.material.opacity = 0.35
-    scene.add(grid)
-
-    function cardTexture(kind) {
-      const c = document.createElement('canvas')
-      c.width = 512; c.height = 320
-      const g = c.getContext('2d')
-      const bg = g.createLinearGradient(0, 0, 512, 320)
-      bg.addColorStop(0, '#f7f9ff'); bg.addColorStop(1, '#dfe8ff')
-      g.fillStyle = bg; g.fillRect(0, 0, 512, 320)
-      g.fillStyle = '#1d4ed8'; g.fillRect(0, 0, 512, 56)
-      g.fillStyle = '#fff'
-      g.font = '600 26px Outfit, Arial, sans-serif'
-      g.fillText(kind.title, 24, 38)
-      kind.lines.forEach((ln, i) => {
-        g.fillStyle = i === kind.highlight ? '#2563eb' : '#94a3b8'
-        g.fillRect(24, 84 + i * 42, kind.widths[i] * 4.4, 14)
-      })
-      if (kind.badge) {
-        g.fillStyle = '#16a34a'
-        g.beginPath(); g.roundRect(340, 250, 150, 44, 22); g.fill()
-        g.fillStyle = '#fff'; g.font = '600 18px Outfit, Arial'; g.fillText(kind.badge, 362, 279)
+    const motion = window.matchMedia('(prefers-reduced-motion: reduce)')
+    let disposed = false
+    let unmount
+    async function syncScene() {
+      if (motion.matches) {
+        unmount?.()
+        unmount = undefined
+        setInteractive(false)
+        return
       }
-      const tex = new THREE.CanvasTexture(c)
-      tex.anisotropy = 4
-      return tex
-    }
-
-    const cardDefs = [
-      { title: 'PRODUCT TERMS · v4.2', lines: ['Rate', 'Fees', 'Eligibility', 'Disclosure'], widths: [70, 55, 80, 62], highlight: 2 },
-      { title: 'DRAFT · CUSTOMER', lines: ['Dear customer,', 'Your rate is', 'Fees apply', 'Thank you'], widths: [45, 70, 60, 35], highlight: 1 },
-      { title: 'REVIEW · 2 / 2', lines: ['Source ✓', 'Clause ✓', 'Tone ✓', 'Compliance ✓'], widths: [40, 40, 40, 50], highlight: 3, badge: 'APPROVED' }
-    ]
-
-    const cards = cardDefs.map((def, i) => {
-      const group = new THREE.Group()
-      const face = new THREE.Mesh(
-        new THREE.PlaneGeometry(2.6, 1.6),
-        new THREE.MeshStandardMaterial({ map: cardTexture(def), roughness: 0.35, metalness: 0.05, side: THREE.DoubleSide })
-      )
-      const back = new THREE.Mesh(
-        new THREE.PlaneGeometry(2.6, 1.6),
-        new THREE.MeshStandardMaterial({ color: 0x1e3a8a, roughness: 0.5, side: THREE.DoubleSide })
-      )
-      back.rotation.y = Math.PI; back.position.z = -0.01
-      const edges = new THREE.LineSegments(
-        new THREE.EdgesGeometry(new THREE.PlaneGeometry(2.7, 1.7)),
-        new THREE.LineBasicMaterial({ color: 0x93b5ff, transparent: true, opacity: 0.25 })
-      )
-      edges.position.z = 0.01
-      const halo = new THREE.Mesh(
-        new THREE.PlaneGeometry(3.3, 2.3),
-        new THREE.MeshBasicMaterial({ color: 0x3b82f6, transparent: true, opacity: 0, depthWrite: false })
-      )
-      halo.position.z = -0.05
-      group.add(halo, face, back, edges)
-      const t = [0.14, 0.5, 0.86][i]
-      const p = curve.getPointAt(t)
-      group.position.copy(p)
-      group.userData = { t, halo, face, back, i, baseY: p.y, flip: 0, targetFlip: 0 }
-      scene.add(group)
-      return group
-    })
-
-    const N = 90
-    const pGeo = new THREE.BufferGeometry()
-    const pos = new Float32Array(N * 3)
-    pGeo.setAttribute('position', new THREE.BufferAttribute(pos, 3))
-    const pMat = new THREE.PointsMaterial({ color: 0xc7d7ff, size: 0.07, transparent: true, opacity: 0.9, depthWrite: false, blending: THREE.AdditiveBlending })
-    const particles = new THREE.Points(pGeo, pMat)
-    scene.add(particles)
-    const phases = Array.from({ length: N }, (_, i) => i / N)
-
-    const dGeo = new THREE.BufferGeometry()
-    const dPos = new Float32Array(120 * 3)
-    for (let i = 0; i < 120; i++) {
-      dPos[i * 3] = (Math.random() - 0.5) * 16
-      dPos[i * 3 + 1] = (Math.random() - 0.5) * 8
-      dPos[i * 3 + 2] = (Math.random() - 0.5) * 8 - 1
-    }
-    dGeo.setAttribute('position', new THREE.BufferAttribute(dPos, 3))
-    const dust = new THREE.Points(dGeo, new THREE.PointsMaterial({ color: 0x9fb4e8, size: 0.03, transparent: true, opacity: 0.5, depthWrite: false }))
-    scene.add(dust)
-
-    let active = 0, autoplay = true, autoTimer = 0
-    let pointer = { x: 0, y: 0 }, camTarget = { x: 0, y: 0 }
-    let drag = null
-    const raycaster = new THREE.Raycaster()
-    const ndc = new THREE.Vector2()
-
-    function setActive(i) {
-      active = i
-      stationBtns.forEach((b, k) => b.classList.toggle('active', k === i))
-      if (captionEl) captionEl.innerHTML = CAPTIONS[i]
-      cards.forEach((c, k) => { c.userData.targetFlip = 0; c.userData.halo.material.opacity = k === i ? 0.22 : 0 })
-      cards[i].userData.targetFlip = cards[i].userData.targetFlip ? 0 : Math.PI
-    }
-
-    stationBtns.forEach(b => b.addEventListener('click', () => {
-      autoplay = false; clearTimeout(autoTimer); setActive(+b.dataset.i)
-    }))
-
-    function pick(e) {
-      const r = canvas.getBoundingClientRect()
-      ndc.x = ((e.clientX - r.left) / r.width) * 2 - 1
-      ndc.y = -((e.clientY - r.top) / r.height) * 2 + 1
-      raycaster.setFromCamera(ndc, camera)
-      const hits = raycaster.intersectObjects(cards.map(c => c.userData.face), false)
-      return hits.length ? cards.indexOf(hits[0].object.parent) : -1
-    }
-
-    wrap.addEventListener('pointerdown', e => {
-      drag = { x: e.clientX, y: e.clientY, moved: false }
-      wrap.classList.add('grabbing')
-    })
-    const onMove = e => {
-      const r = wrap.getBoundingClientRect()
-      pointer.x = ((e.clientX - r.left) / r.width) * 2 - 1
-      pointer.y = ((e.clientY - r.top) / r.height) * 2 - 1
-      if (drag) {
-        const dx = e.clientX - drag.x, dy = e.clientY - drag.y
-        if (Math.abs(dx) + Math.abs(dy) > 4) drag.moved = true
-        if (drag.moved) {
-          scene.rotation.y = Math.max(-0.5, Math.min(0.5, scene.rotation.y + dx * 0.004))
-          scene.rotation.x = Math.max(-0.3, Math.min(0.3, scene.rotation.x + dy * 0.002))
-          drag.x = e.clientX; drag.y = e.clientY
-        }
+      try {
+        const { mountLoginScene } = await import('./loginScene.js')
+        if (disposed || motion.matches || unmount) return
+        unmount = mountLoginScene(canvasRef.current, wrapRef.current, activeRef, chooseStage)
+        setInteractive(true)
+      } catch {
+        if (!disposed) setInteractive(false)
       }
     }
-    const onUp = e => {
-      if (drag && !drag.moved) {
-        const i = pick(e)
-        if (i >= 0) { autoplay = false; clearTimeout(autoTimer); setActive(i) }
-      }
-      if (!drag) { scene.rotation.x *= 0.2; scene.rotation.y *= 0.2 }
-      drag = null
-      wrap.classList.remove('grabbing')
-    }
-    window.addEventListener('pointermove', onMove)
-    window.addEventListener('pointerup', onUp)
-
-    function resize() {
-      const w = wrap.clientWidth, h = wrap.clientHeight
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
-      renderer.setSize(w, h, false)
-      camera.aspect = w / h
-      camera.position.z = w < 600 ? 10.5 : 8.6
-      camera.updateProjectionMatrix()
-    }
-    window.addEventListener('resize', resize)
-    resize()
-
-    setActive(0)
-    function autoAdvance() {
-      if (!autoplay) return
-      setActive((active + 1) % cards.length)
-      autoTimer = setTimeout(autoAdvance, 2800)
-    }
-    autoTimer = setTimeout(autoAdvance, 2800)
-
-    let raf
-    const clock = new THREE.Clock()
-    function animate() {
-      const t = clock.getElapsedTime()
-      camTarget.x += (pointer.x * 0.6 - camTarget.x) * 0.05
-      camTarget.y += (-pointer.y * 0.35 - camTarget.y) * 0.05
-      camera.position.x = camTarget.x
-      camera.position.y = 0.4 + camTarget.y
-      camera.lookAt(0, 0, 0)
-      cards.forEach((c, i) => {
-        const u = c.userData
-        const isActive = i === active
-        const targetZ = isActive ? 0.6 : 0
-        const targetS = isActive ? 1.1 : 1.0
-        c.position.y = u.baseY + Math.sin(t * 1.4 + i * 1.7) * 0.12
-        c.position.z += (targetZ - c.position.z) * 0.08
-        const s = c.scale.x + (targetS - c.scale.x) * 0.08
-        c.scale.set(s, s, s)
-        u.flip += (u.targetFlip - u.flip) * 0.09
-        c.rotation.y = u.flip
-        c.rotation.x = Math.sin(t * 0.9 + i) * 0.05
-        u.halo.material.opacity += ((isActive ? 0.25 : 0) - u.halo.material.opacity) * 0.1
-      })
-      const arr = pGeo.attributes.position.array
-      for (let i = 0; i < N; i++) {
-        phases[i] = (phases[i] + 0.0022 + (i % 5) * 0.00008) % 1
-        const p = curve.getPointAt(phases[i])
-        arr[i * 3] = p.x; arr[i * 3 + 1] = p.y + Math.sin(t * 3 + i) * 0.03; arr[i * 3 + 2] = p.z
-      }
-      pGeo.attributes.position.needsUpdate = true
-      dust.rotation.y = t * 0.02
-      rim.position.x = Math.sin(t * 0.6) * 4
-      renderer.render(scene, camera)
-      raf = requestAnimationFrame(animate)
-    }
-    animate()
-
+    syncScene()
+    motion.addEventListener('change', syncScene)
     return () => {
-      cancelAnimationFrame(raf)
-      clearTimeout(autoTimer)
-      window.removeEventListener('pointermove', onMove)
-      window.removeEventListener('pointerup', onUp)
-      window.removeEventListener('resize', resize)
-      renderer.dispose()
+      disposed = true
+      motion.removeEventListener('change', syncScene)
+      unmount?.()
     }
   }, [])
+
+  useEffect(() => {
+    if (!interactive || manual) return
+    const timer = setInterval(() => {
+      activeRef.current = (activeRef.current + 1) % stages.length
+      setActive(activeRef.current)
+    }, 2800)
+    return () => clearInterval(timer)
+  }, [interactive, manual])
 
   return (
     <section className="fs-showcase">
@@ -443,33 +232,20 @@ function Showcase() {
       <p className="fs-sub">Draft from verified product information and bring the source to every review.</p>
 
       <div id="fs-scene-wrap" ref={wrapRef}>
-        <canvas id="fs-scene" ref={canvasRef} />
+        <canvas id="fs-scene" ref={canvasRef} aria-hidden="true" />
+        {!interactive && <div className="fs-paper" aria-hidden="true"><strong>{stages[active][0]}</strong><i /><i /><i /></div>}
       </div>
 
       <div className="fs-stations">
-        {[['01', 'Official source'], ['02', 'Draft'], ['03', 'Review']].map(([num, label], i) => (
-          <button key={i} className={`fs-station-btn${i === 0 ? ' active' : ''}`} data-i={i} type="button">
-            <small>{num}</small><strong>{label}</strong>
+        {stages.map(([label], i) => (
+          <button key={i} className={`fs-station-btn${i === active ? ' active' : ''}`} aria-pressed={i === active} onClick={() => chooseStage(i)} type="button">
+            <small>0{i + 1}</small><strong>{label}</strong>
           </button>
         ))}
       </div>
-      <div className="fs-caption" ref={captionRef} />
+      <div className="fs-caption"><b>{stages[active][0]}.</b> {stages[active][1]}</div>
       <div className="fs-footer-label">Staff communication portal</div>
 
-      <div className={`fs-chat-panel${chatOpen ? ' open' : ''}`}>
-        <p><b>Harborline Support</b><br />Every draft links back to its official source. Reviewers see the exact clause before approving. Need help with sign-in or a document?</p>
-      </div>
-      <div
-        className="fs-chip"
-        role="button"
-        tabIndex={0}
-        aria-label="Open Harborline Support"
-        onClick={() => setChatOpen(o => !o)}
-        onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && setChatOpen(o => !o)}
-      >
-        <span className="dot-live" />
-        <div><strong>Harborline Support</strong><small>Powered by Gemini AI</small></div>
-      </div>
     </section>
   )
 }
@@ -477,22 +253,13 @@ function Showcase() {
 /* ─── Main Login component ─── */
 export default function Login({ onLogin }) {
   const [tab, setTab] = useState('staff')   // 'staff' | 'eval'
-  const [email, setEmail] = useState('alex.drafter@harborline.bank')
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPw, setShowPw] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
   const [demoUsers, setDemoUsers] = useState([])
-
-  // Load Three.js once
-  useEffect(() => {
-    if (window.THREE) return
-    const script = document.createElement('script')
-    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js'
-    script.async = true
-    document.head.appendChild(script)
-  }, [])
 
   useEffect(() => {
     fetch('/api/auth/users')
@@ -504,18 +271,18 @@ export default function Login({ onLogin }) {
   async function handleSubmit(e) {
     e.preventDefault()
     setError('')
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
       setError('Please enter a valid staff email address.'); return
     }
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters.'); return
+    if (!password) {
+      setError('Enter your workspace password.'); return
     }
     setBusy(true)
     try {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim(), password: password.trim() })
+        body: JSON.stringify({ email: email.trim(), password })
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.detail || 'Authentication failed.')
@@ -527,22 +294,12 @@ export default function Login({ onLogin }) {
     }
   }
 
-  async function quickLogin(u) {
-    setBusy(true); setError('')
-    try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: u.email, password: u.demo_password })
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.detail || 'Sign-in failed.')
-      setSuccess(true)
-      setTimeout(() => onLogin(data.user, data.token), 1200)
-    } catch (err) {
-      setError(err.message)
-      setBusy(false)
-    }
+  function selectProfile(profile) {
+    setEmail(profile.email)
+    setPassword('')
+    setShowPw(false)
+    setError('')
+    setTab('profile-password')
   }
 
   return (
@@ -566,24 +323,24 @@ export default function Login({ onLogin }) {
             </div>
 
             <h1>Welcome back<span className="fs-dot">.</span></h1>
-            <p className="fs-lede">Sign in to prepare and review customer communications.</p>
+            <p className="fs-lede">{tab === 'profile-password' ? 'Enter the password for the selected profile.' : 'Sign in to prepare and review communications using HDFC Bank sources.'}</p>
 
             {/* Tabs */}
-            <div className={`fs-tabs${tab === 'eval' ? ' right' : ''}`}>
+            <div className={`fs-tabs${tab !== 'staff' ? ' right' : ''}`}>
               <span className="fs-tab-thumb" />
               <button type="button" className={`fs-tab${tab === 'staff' ? ' active' : ''}`}
-                onClick={() => { setTab('staff'); setError('') }}>Staff sign-in</button>
-              <button type="button" className={`fs-tab${tab === 'eval' ? ' active' : ''}`}
-                onClick={() => { setTab('eval'); setError('') }}>Evaluation profiles</button>
+                disabled={busy} onClick={() => { setTab('staff'); setPassword(''); setShowPw(false); setError('') }}>Staff sign-in</button>
+              <button type="button" className={`fs-tab${tab !== 'staff' ? ' active' : ''}`}
+                disabled={busy} onClick={() => { setTab('eval'); setPassword(''); setShowPw(false); setError('') }}>Evaluation profiles</button>
             </div>
 
             {/* Staff sign-in form */}
-            {tab === 'staff' && (
+            {tab !== 'eval' && (
               <form onSubmit={handleSubmit} noValidate>
                 <div className="fs-field">
                   <label htmlFor="fs-email">Staff Email Address</label>
                   <div className="fs-input-wrap">
-                    <input id="fs-email" type="email" value={email} autoComplete="username"
+                    <input id="fs-email" type="email" value={email} autoComplete="username" readOnly={tab === 'profile-password'}
                       onChange={e => setEmail(e.target.value)} disabled={busy} />
                   </div>
                 </div>
@@ -591,7 +348,7 @@ export default function Login({ onLogin }) {
                   <label htmlFor="fs-password">Password</label>
                   <div className="fs-input-wrap">
                     <input id="fs-password" type={showPw ? 'text' : 'password'} value={password}
-                      autoComplete="current-password" onChange={e => setPassword(e.target.value)}
+                      autoFocus={tab === 'profile-password'} autoComplete="current-password" onChange={e => setPassword(e.target.value)}
                       placeholder="••••••••" disabled={busy} />
                     <button type="button" className="fs-toggle" aria-label={showPw ? 'Hide password' : 'Show password'}
                       onClick={() => setShowPw(s => !s)}>
@@ -621,13 +378,13 @@ export default function Login({ onLogin }) {
             {/* Evaluation profiles */}
             {tab === 'eval' && (
               <div className="fs-profiles">
-                <div className="fs-profiles-label">Choose a staff profile for immediate evaluation:</div>
+                <div className="fs-profiles-label">Choose a staff profile</div>
                 {demoUsers.length === 0 && (
                   <p style={{ color: 'var(--muted)', fontSize: '14px' }}>No evaluation profiles are configured.</p>
                 )}
                 {demoUsers.map(u => (
                   <button key={u.id} type="button" className="fs-profile-btn"
-                    onClick={() => quickLogin(u)} disabled={busy}>
+                    onClick={() => selectProfile(u)} disabled={busy}>
                     <div className="fs-avatar" style={{ background: u.avatar_color }}>
                       {u.name.split(' ').map(n => n[0]).join('')}
                     </div>
@@ -646,7 +403,7 @@ export default function Login({ onLogin }) {
               </div>
             )}
 
-            <div className="fs-notice">Harborline Bank &amp; Financial Services · Dual-Control Compliance &amp; Audit System</div>
+            <div className="fs-notice">Independent workspace · HDFC Bank public sources</div>
 
             {/* Success overlay */}
             <div className={`fs-success${success ? ' show' : ''}`}>

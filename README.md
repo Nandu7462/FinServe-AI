@@ -18,7 +18,7 @@ Open [FinServe AI](http://127.0.0.1:8000). On subsequent starts only the last co
 
 ## Host an evaluation on Render
 
-The included `render.yaml` builds the React interface and serves it from FastAPI on one free Render web service. Use only public bank information for a shared evaluation. Several API routes, including draft history and customer preferences, currently accept requests without a signed-in staff session.
+The included `render.yaml` builds the React interface and serves it from FastAPI on one free Render web service. On Render, the workspace requires staff sign-in for drafts, customer preferences and the approved library. Visitors can use the sign-in page and ask Support about public bank sources. Use public bank information for a shared evaluation.
 
 1. Create a free Neon PostgreSQL project for the evaluation. Copy its connection URL, change the prefix from `postgresql://` to `postgresql+psycopg://`, and keep its TLS parameters.
 2. In Render, create a **Blueprint** from this repository. Enter the connection URL as `DATABASE_URL` and set a distinct password for each evaluation role in the prompted secret fields.

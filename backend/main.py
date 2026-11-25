@@ -9,8 +9,8 @@ import re
 from uuid import uuid4
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import PlainTextResponse
+from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi.responses import JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from sqlalchemy import JSON, Column, MetaData, String, Table, create_engine, insert, select, update
@@ -21,7 +21,13 @@ from .sources import check_url, extract_notice_candidate, normalized, retrieve
 
 load_dotenv()
 ROOT = Path(__file__).resolve().parents[1]
-db = create_engine(os.getenv("DATABASE_URL", "sqlite:///hdfc-finserve.db"))
+hosted = os.getenv("RENDER") == "true"
+database_url = os.getenv("DATABASE_URL") or "sqlite:///hdfc-finserve.db"
+if database_url.startswith("postgresql://"):
+    database_url = database_url.replace("postgresql://", "postgresql+psycopg://", 1)
+if hosted and not database_url.startswith("postgresql+psycopg://"):
+    raise RuntimeError("Configure DATABASE_URL with the Neon PostgreSQL connection string.")
+db = create_engine(database_url, pool_pre_ping=True)
 metadata = MetaData()
 
 drafts = Table("hdfc_drafts", metadata,
@@ -129,6 +135,8 @@ def get_current_user(request: Request) -> Optional[dict]:
     token = None
     if auth_header.startswith("Bearer "):
         token = auth_header[7:].strip()
+    elif hosted:
+        token = request.cookies.get("finserve_session")
     elif "token" in request.query_params:
         token = request.query_params["token"].strip()
     if token and token in SESSIONS:
@@ -276,6 +284,19 @@ async def lifespan(app):
 app = FastAPI(title="FinServe AI: Customer Communication Assistant", lifespan=lifespan)
 
 
+@app.middleware("http")
+async def protect_hosted_workspace(request: Request, call_next):
+    path = request.url.path
+    public = {"/api/auth/login", "/api/auth/users", "/api/support/chat"}
+    if hosted and path.startswith("/api/") and path not in public:
+        user = get_current_user(request)
+        if not user:
+            return JSONResponse({"detail": "Staff sign-in required."}, status_code=401)
+        if path.startswith("/api/drafts/") and path.endswith(("/approve", "/reject")) and user["role"] not in {"admin", "compliance"}:
+            return JSONResponse({"detail": "Reviewer access required."}, status_code=403)
+    return await call_next(request)
+
+
 class DraftRequest(BaseModel):
     notice_id: str
     customer: str = Field(default="", max_length=80)
@@ -312,7 +333,7 @@ class SourceRequest(BaseModel):
 
 
 @app.post("/api/auth/login")
-def login(req: LoginRequest):
+def login(req: LoginRequest, response: Response):
     email = req.email.strip().lower()
     with db.connect() as connection:
         user_row = connection.execute(
@@ -332,6 +353,8 @@ def login(req: LoginRequest):
     }
     token = f"tok_{uuid4().hex}"
     SESSIONS[token] = user_data
+    if hosted:
+        response.set_cookie("finserve_session", token, secure=True, httponly=True, samesite="strict", path="/api")
     return {"token": token, "user": user_data}
 
 
@@ -360,11 +383,14 @@ def list_demo_users():
 
 
 @app.post("/api/auth/logout")
-def logout(request: Request):
+def logout(request: Request, response: Response):
     auth_header = request.headers.get("Authorization", "")
     if auth_header.startswith("Bearer "):
         token = auth_header[7:].strip()
         SESSIONS.pop(token, None)
+    if hosted:
+        SESSIONS.pop(request.cookies.get("finserve_session"), None)
+        response.delete_cookie("finserve_session", path="/api")
     return {"ok": True, "message": "Logged out successfully."}
 
 
@@ -976,12 +1002,14 @@ def reject(draft_id: str, request_data: dict, request: Request):
 
 
 @app.post("/api/support/chat")
-async def support_chat(req: SupportChatRequest):
+async def support_chat(req: SupportChatRequest, request: Request):
     active_notices = notices()
-    with db.connect() as connection:
-        mem_list = connection.execute(
-            select(memento_memories).where(memento_memories.c.kind == "explanation")
-        ).mappings().all()
+    mem_list = []
+    if not hosted or get_current_user(request):
+        with db.connect() as connection:
+            mem_list = connection.execute(
+                select(memento_memories).where(memento_memories.c.kind == "explanation")
+            ).mappings().all()
     bank = "HDFC Bank"
 
     messages_data = [m.model_dump() for m in req.messages]
