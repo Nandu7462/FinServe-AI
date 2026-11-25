@@ -37,10 +37,173 @@ async def fetch_source(url):
     return markdown
 
 
-def generate_template_draft(product, tone, wording, category="Fee change", statement="", bank="Harborline Bank"):
+def generate_template_draft(product, tone, wording, category="Fee change", statement="", bank="Harborline Bank", language="English"):
     cat_lower = (category or "").lower()
-    
-    # Subject lines
+    lang_lower = (language or "English").lower()
+
+    # Multilingual templates
+    if lang_lower == "hindi":
+        if "fee" in cat_lower:
+            subjects = {
+                "Friendly": f"आपके {product} वार्षिक शुल्क के संबंध में महत्वपूर्ण अपडेट",
+                "Formal": f"{product} शुल्क अनुसूची में संशोधन की आधिकारिक सूचना",
+                "Concise": f"अद्यतन: {product} वार्षिक शुल्क सूचना",
+            }
+            intros = {
+                "Friendly": f"हम आशा करते हैं कि आप अपनी {product} सेवाओं से संतुष्ट हैं। हम आपको आपके खाते के शुल्क अनुसूची में आगामी संशोधन की अग्रिम सूचना दे रहे हैं।",
+                "Formal": f"यह आधिकारिक अधिसूचना आपको आपके {product} पर लागू शुल्क संरचना में निर्धारित संशोधन के बारे में सूचित करने के लिए है।",
+                "Concise": f"कृपया अपने {product} के लिए नीचे उल्लिखित निर्धारित शुल्क संशोधन की समीक्षा करें।",
+            }
+            explanations = {
+                "Friendly": "यह अपडेट 24/7 वास्तविक समय धोखाधड़ी निगरानी, संपर्क रहित भुगतान और आपके लेनदेन की सुरक्षा में निरंतर निवेश का समर्थन करता है।",
+                "Formal": "यह शुल्क समायोजन हमारे बैंकिंग ढांचे में निरंतर परिचालन संवर्द्धन, नियामक अनुपालन और मजबूत सुरक्षा प्रोटोकॉल को दर्शाता है।",
+                "Concise": "समायोजित शुल्क कार्ड सुरक्षा प्रणाली, संपर्क रहित चिप सुरक्षा और खाता रखरखाव का समर्थन करता है।",
+            }
+        elif "service" in cat_lower:
+            subjects = {
+                "Friendly": f"सूचना: {product} के लिए निर्धारित रखरखाव",
+                "Formal": f"निर्धारित रखरखाव की अधिसूचना: {product}",
+                "Concise": f"सेवा परामर्श: {product} रखरखाव विंडो",
+            }
+            intros = {
+                "Friendly": f"बैंकिंग को सुचारू और सुरक्षित रखने के लिए, हम {product} पर नियमित रखरखाव करेंगे।",
+                "Formal": f"कृपया ध्यान दें कि {product} प्लेटफॉर्म पर निर्धारित सिस्टम रखरखाव किया जाएगा।",
+                "Concise": f"{product} को प्रभावित करने वाले निर्धारित रखरखाव की सूचना।",
+            }
+            explanations = {
+                "Friendly": "हमारे एटीएम और आपातकालीन कार्ड ब्लॉक सेवाएं इस दौरान पूरी तरह चालू रहेंगी।",
+                "Formal": "इस अवधि के दौरान आवश्यक बुनियादी ढांचा अपडेट लागू किया जाएगा। एटीएम और आपातकालीन सेवाएं चालू रहेंगी।",
+                "Concise": "सुरक्षा और सर्वर संवर्द्धन लागू किए जा रहे हैं। एटीएम सेवाएं सक्रिय रहेंगी।",
+            }
+        else:
+            subjects = {
+                "Friendly": f"आपके {product} के बारे में जानकारी",
+                "Formal": f"आधिकारिक उत्पाद सूचना: {product}",
+                "Concise": f"सूचना पत्र: {product}",
+            }
+            intros = {
+                "Friendly": f"हम आपके {product} के संबंध में आवश्यक विवरण साझा करते हुए प्रसन्न हैं।",
+                "Formal": f"हम आपको आपके {product} के नियम और शर्तों की जानकारी प्रदान कर रहे हैं।",
+                "Concise": f"कृपया नीचे अपने {product} का उत्पाद विवरण देखें।",
+            }
+            explanations = {
+                "Friendly": "आपके खाते में डिजिटल स्टेटमेंट, त्वरित मोबाइल अलर्ट और सुरक्षित ऑनलाइन ट्रांसफर शामिल हैं।",
+                "Formal": "खाताधारकों को ऑनलाइन खाता प्रबंधन और मासिक इलेक्ट्रॉनिक विवरण की सुविधा मिलती है।",
+                "Concise": "सुविधाओं में ऑनलाइन बैंकिंग और डिजिटल सेल्फ-सर्विस टूल शामिल हैं।",
+            }
+        closing = wording or "यदि आपके कोई प्रश्न हैं या सहायता की आवश्यकता है, तो हमारी ग्राहक सहायता टीम 24/7 उपलब्ध है।"
+        sms_statement = statement or f"{product} वार्षिक शुल्क संशोधित होगा।"
+        return DraftText(
+            subject=subjects.get(tone, subjects["Formal"]),
+            introduction=intros.get(tone, intros["Formal"]),
+            explanation=explanations.get(tone, explanations["Formal"]),
+            closing=closing,
+            sms_text=f"{bank} अलर्ट: {sms_statement} {wording or 'प्रश्नों के लिए ग्राहक सेवा पर संपर्क करें।'}"[:320]
+        )
+
+    if lang_lower == "spanish":
+        if "fee" in cat_lower:
+            subjects = {
+                "Friendly": f"Actualización importante sobre la tarifa anual de su {product}",
+                "Formal": f"Aviso de Revisión del Cuadro de Tarifas de {product}",
+                "Concise": f"Actualización: Aviso de Tarifa Anual de {product}",
+            }
+            intros = {
+                "Friendly": f"Esperamos que disfrute de los beneficios de su {product}. Le notificamos sobre una próxima revisión en las tarifas de su cuenta.",
+                "Formal": f"Esta notificación oficial tiene como objetivo informarle sobre una revisión programada de la tarifa aplicable a su {product}.",
+                "Concise": f"Consulte la revisión programada de tarifas que se detalla a continuación para su {product}.",
+            }
+            explanations = {
+                "Friendly": "Esta actualización respalda inversiones continuas en monitoreo de fraudes 24/7, tecnología sin contacto y protección mundial.",
+                "Formal": "Este ajuste de tarifa refleja mejoras operativas continuas, estándares de cumplimiento y protocolos reforzados de seguridad.",
+                "Concise": "La tarifa ajustada respalda los sistemas de seguridad, chip sin contacto y mantenimiento de cuenta.",
+            }
+        elif "service" in cat_lower:
+            subjects = {
+                "Friendly": f"Aviso: Mantenimiento programado de {product}",
+                "Formal": f"Notificación de Mantenimiento Programado: {product}",
+                "Concise": f"Aviso de Servicio: Ventana de Mantenimiento de {product}",
+            }
+            intros = {
+                "Friendly": f"Para garantizar un servicio seguro, realizaremos mantenimiento de rutina en {product}.",
+                "Formal": f"Se informa que se llevará a cabo mantenimiento programado del sistema en {product}.",
+                "Concise": f"Aviso de mantenimiento programado que afecta a {product}.",
+            }
+            explanations = {
+                "Friendly": "Nuestros cajeros automáticos (ATM) y servicios de bloqueo de tarjetas de emergencia permanecerán activos.",
+                "Formal": "Durante este período se implementarán actualizaciones esenciales. Los cajeros y servicios urgentes siguen operativos.",
+                "Concise": "Se aplican mejoras críticas de infraestructura. Los cajeros automáticos permanecen accesibles.",
+            }
+        else:
+            subjects = {
+                "Friendly": f"Información sobre su {product}",
+                "Formal": f"Información Oficial de Producto: {product}",
+                "Concise": f"Aviso Informativo: {product}",
+            }
+            intros = {
+                "Friendly": f"Nos complace compartir detalles esenciales y características de su {product}.",
+                "Formal": f"Le proporcionamos los términos, condiciones y parámetros operativos para su {product}.",
+                "Concise": f"Consulte la especificación del producto a continuación para su {product}.",
+            }
+            explanations = {
+                "Friendly": "Su cuenta incluye acceso completo a extractos digitales, alertas móviles instantáneas y transferencias seguras.",
+                "Formal": "Los titulares de cuentas se benefician de administración electrónica, estados de cuenta mensuales y protecciones bancarias.",
+                "Concise": "Las características incluyen banca en línea, extractos electrónicos y herramientas de autoservicio digital.",
+            }
+        closing = wording or "Si tiene preguntas o necesita asistencia, nuestro equipo de soporte está disponible las 24 horas."
+        sms_statement = statement or f"La tarifa de {product} será modificada."
+        return DraftText(
+            subject=subjects.get(tone, subjects["Formal"]),
+            introduction=intros.get(tone, intros["Formal"]),
+            explanation=explanations.get(tone, explanations["Formal"]),
+            closing=closing,
+            sms_text=f"Alerta {bank}: {sms_statement} {wording or 'Para consultas llame a atención al cliente.'}"[:320]
+        )
+
+    if lang_lower == "french":
+        if "fee" in cat_lower:
+            subjects = {
+                "Friendly": f"Mise à jour importante concernant la cotisation annuelle de votre {product}",
+                "Formal": f"Avis de Révision de la Grille Tarifaire de {product}",
+                "Concise": f"Mise à jour : Avis de Cotisation Annuelle de {product}",
+            }
+            intros = {
+                "Friendly": f"Nous espérons que vous appréciez votre {product}. Nous vous informons d'une révision programmée de votre barème tarifaire.",
+                "Formal": f"Cette notification officielle a pour objet de vous informer d'une révision programmée de la tarification de votre {product}.",
+                "Concise": f"Veuillez prendre note de la révision tarifaire programmée ci-dessous pour votre {product}.",
+            }
+            explanations = {
+                "Friendly": "Cette mise à jour soutient nos investissements dans la surveillance des fraudes 24h/24, le paiement sans contact et la sécurité.",
+                "Formal": "Cet ajustement tarifaire reflète des améliorations opérationnelles continues et le renforcement des protocoles de sécurité.",
+                "Concise": "La cotisation ajustée finance la sécurité carte, la protection sans contact et la tenue de compte.",
+            }
+        else:
+            subjects = {
+                "Friendly": f"Information importante concernant votre {product}",
+                "Formal": f"Notification Officielle : {product}",
+                "Concise": f"Avis Informatif : {product}",
+            }
+            intros = {
+                "Friendly": f"Nous sommes ravis de partager avec vous les détails de votre {product}.",
+                "Formal": f"Nous vous transmettons les modalités et caractéristiques de fonctionnement de votre {product}.",
+                "Concise": f"Veuillez consulter ci-dessous les informations relatives à votre {product}.",
+            }
+            explanations = {
+                "Friendly": "Votre compte comprend l'accès aux relevés électroniques et aux alertes mobiles instantanées.",
+                "Formal": "Les titulaires de compte bénéficient de services de banque en ligne et de relevés mensuels sécurisés.",
+                "Concise": "Comprend la banque en ligne, les relevés numériques et les outils d'autonomie financière.",
+            }
+        closing = wording or "Si vous avez des questions, notre équipe d'assistance client est disponible 24h/24."
+        sms_statement = statement or f"La cotisation de {product} sera modifiée."
+        return DraftText(
+            subject=subjects.get(tone, subjects["Formal"]),
+            introduction=intros.get(tone, intros["Formal"]),
+            explanation=explanations.get(tone, explanations["Formal"]),
+            closing=closing,
+            sms_text=f"Alerte {bank}: {sms_statement} {wording or 'Pour toute question, contactez notre service client.'}"[:320]
+        )
+
+    # Default English templates
     if "fee" in cat_lower:
         subjects = {
             "Friendly": f"Important update regarding your {product} annual fee",
@@ -102,10 +265,10 @@ def generate_template_draft(product, tone, wording, category="Fee change", state
     )
 
 
-async def draft_text(product, tone, wording, category="Fee change", statement="", context_text="", channel="Email", bank="Harborline Bank"):
+async def draft_text(product, tone, wording, category="Fee change", statement="", context_text="", channel="Email", language="English", bank="Harborline Bank"):
     key = os.getenv("GEMINI_API_KEY")
     if not key:
-        return generate_template_draft(product, tone, wording, category, statement, bank)
+        return generate_template_draft(product, tone, wording, category, statement, bank, language=language)
     
     model = os.getenv("GEMINI_MODEL") or "gemini-3.8-flash"
     prompt = {
@@ -114,6 +277,7 @@ async def draft_text(product, tone, wording, category="Fee change", statement=""
         "product": product,
         "tone": tone,
         "channel": channel,
+        "customer_language": language or "English",
         "approved_prior_wording": wording,
         "verified_source_statement": statement,
         "context_excerpt": context_text[:1500] if context_text else "",
@@ -126,7 +290,10 @@ async def draft_text(product, tone, wording, category="Fee change", statement=""
         "1. Accuracy: Respect the verified source statement. Never fabricate fee amounts, dates, or terms.\n"
         "2. Prior Approval Consistency: Align your explanation with the approved prior wording provided.\n"
         "3. Tone: Adhere to the selected customer tone (Friendly, Formal, or Concise).\n"
-        "4. Structure:\n"
+        f"4. Language: The customer's preferred communication language stored in Memento is '{language or 'English'}'. "
+        f"Draft ALL components (subject, introduction, explanation, closing, and sms_text) natively and fluently in '{language or 'English'}', "
+        f"using standard banking terminology in {language or 'English'}. Never mix languages.\n"
+        "5. Structure:\n"
         "   - subject: Clear, professional subject line (under 160 characters).\n"
         "   - introduction: Courteous, contextual opening.\n"
         "   - explanation: Clear rationale or benefit explanation grounded in the notice context and prior approved wording.\n"
@@ -135,7 +302,7 @@ async def draft_text(product, tone, wording, category="Fee change", statement=""
     )
 
     try:
-        async with httpx.AsyncClient(timeout=6) as client:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(5.0, connect=2.0)) as client:
             response = await client.post(
                 f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
                 headers={"x-goog-api-key": key},
@@ -156,8 +323,8 @@ async def draft_text(product, tone, wording, category="Fee change", statement=""
         text_content = "".join(part.get("text", "") for part in parts if not part.get("thought"))
         return DraftText.model_validate_json(text_content)
     except Exception as err:
-        # Fallback to high quality template draft if API fails or quota exceeded
-        return generate_template_draft(product, tone, wording, category, statement, bank)
+        # Fallback to high quality localized template draft
+        return generate_template_draft(product, tone, wording, category, statement, bank, language=language)
 
 
 async def memento(tool, arguments):

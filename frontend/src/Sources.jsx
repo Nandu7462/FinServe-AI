@@ -152,7 +152,7 @@ export default function Sources({notices, busy, register, select}) {
         <p className="panel-note" style={{marginBottom:'15px'}}>Notices currently available for drafting consistent communications.</p>
         <div style={{display:'grid', gap:'14px'}}>
           {notices.map(n => (
-            <article className="source-entry" key={n.id || n.title} style={{padding:'14px', borderRadius:'10px', background:'#f8f7fc', border:'1px solid #e5e1ee'}}>
+            <article className="source-entry" key={n.id || n.title} style={{padding:'14px', borderRadius:'10px', background:'#f8f9fc', border:'1px solid #e5e1ee'}}>
               <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'6px'}}>
                 <small style={{fontWeight:650, color:'#62677c'}}>{n.bank} · <span className={'badge ' + (n.category || 'Fee').toLowerCase()}>{n.category || 'Fee'}</span></small>
                 {n.url && <a href={n.url} target="_blank" rel="noreferrer" style={{fontSize:'12px'}}>Source <ArrowUpRight size={12}/></a>}

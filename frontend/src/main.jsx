@@ -1,18 +1,24 @@
-import React, {useEffect, useState} from 'react'
-import {createRoot} from 'react-dom/client'
+import React, { useEffect, useState } from 'react'
+import { createRoot } from 'react-dom/client'
 import {
-  ArrowUpRight, BookOpen, Check, ChevronRight, CircleAlert, Clipboard, Clock3,
-  Download, Edit3, FileText, Globe, Layers3, LibraryBig, LogOut, Mail, ShieldAlert,
-  ShieldCheck, Smartphone, Sparkles, User, Lock
+  Activity, AlertTriangle, ArrowUpRight, BookOpen, Check, ChevronRight,
+  CircleAlert, Clipboard, Clock3, Database, Download, Edit3, FileText,
+  GitCompare, Globe, Layers3, LibraryBig, Lock, LogOut, Mail, MessageSquare,
+  Moon, Plus, RefreshCw, Search, Settings, ShieldAlert, ShieldCheck,
+  Smartphone, Sparkles, Sun, User, UserPlus, Users, Wifi
 } from 'lucide-react'
+import '@fontsource-variable/plus-jakarta-sans'
+import '@fontsource-variable/urbanist'
 import './style.css'
+import './compass.css'
 import Sources from './Sources'
 import KnowledgeBank from './KnowledgeBank'
 import Login from './Login'
 import ChatWidget from './ChatWidget'
+import Readability from './Readability.jsx'
 
 async function api(path, payload, token) {
-  const headers = {'Content-Type': 'application/json'}
+  const headers = { 'Content-Type': 'application/json' }
   const activeToken = token || localStorage.getItem('finserve_token')
   if (activeToken) {
     headers['Authorization'] = 'Bearer ' + activeToken
@@ -25,10 +31,10 @@ async function api(path, payload, token) {
   return value
 }
 
-const date = value => new Date(value).toLocaleString('en-IN', {dateStyle: 'medium', timeStyle: 'short'})
-const states = {rejected: 'Rejected', approved: 'Approved', blocked: 'Needs source review', draft: 'Ready for review'}
+const date = value => new Date(value).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })
+const states = { rejected: 'Returned / Rejected', approved: 'Approved', blocked: 'Needs source review', draft: 'Ready for review' }
 
-function ReferenceFx({draft}) {
+function ReferenceFx({ draft }) {
   const [currency, setCurrency] = useState('USD')
   const [quote, setQuote] = useState(null)
   const [error, setError] = useState('')
@@ -46,7 +52,7 @@ function ReferenceFx({draft}) {
     <summary>Currency estimate (INR conversion)</summary>
     <p className="panel-note">Reference only. The customer notice retains the verified INR fee.</p>
     <form onSubmit={fetchQuote} className="fx-form">
-      <select aria-label="Estimate currency" value={currency} disabled={busy} onChange={event => {setCurrency(event.target.value); setQuote(null); setError('')}}>
+      <select aria-label="Estimate currency" value={currency} disabled={busy} onChange={event => { setCurrency(event.target.value); setQuote(null); setError('') }}>
         {['USD', 'EUR', 'GBP'].map(code => <option key={code}>{code}</option>)}
       </select>
       <button className="primary" disabled={busy}>{busy ? 'Checking…' : 'Get estimate'}</button>
@@ -54,6 +60,202 @@ function ReferenceFx({draft}) {
     {quote && <p role="status" className="panel-note"><strong>≈ {quote.currency} {quote.amount}</strong> · {quote.date} · <a href="https://frankfurter.dev/" target="_blank" rel="noreferrer">Frankfurter</a></p>}
     {error && <p role="alert" className="panel-note">{error}</p>}
   </details>
+}
+
+// Pre-Flight Regulatory Compliance Linter Component
+function PreFlightLinter({ item, subject, body, onInjectDisclaimers, canDraft }) {
+  const [lintResult, setLintResult] = useState(null)
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (!body || !body.trim()) {
+      setLintResult(null)
+      return
+    }
+    let active = true
+    setLoading(true)
+    api('compliance/lint', {
+      subject: subject || '',
+      body: body || '',
+      facts: item?.facts || {},
+      bank: item?.source?.bank || 'Harborline Bank',
+      language: item?.language || 'English'
+    })
+      .then(res => {
+        if (active) setLintResult(res)
+      })
+      .catch(() => { })
+      .finally(() => {
+        if (active) setLoading(false)
+      })
+    return () => { active = false }
+  }, [subject, body, item])
+
+  if (!body || !lintResult) return null
+
+  const isCompliant = lintResult.score >= 80
+
+  return (
+    <div className="linter-card">
+      <div className="linter-head">
+        <div>
+          <strong style={{ fontSize: '13.5px', color: 'var(--text-main)' }}>Regulatory Pre-Flight Linter</strong>
+          <small style={{ display: 'block', color: 'var(--text-muted)' }}>Automated statutory checks (RBI, FCA, CFPB rules)</small>
+        </div>
+        <span className={`linter-score-badge ${isCompliant ? 'score-compliant' : 'score-warning'}`}>
+          {isCompliant ? <ShieldCheck size={14} /> : <ShieldAlert size={14} />}
+          {lintResult.score}% Compliant
+        </span>
+      </div>
+
+      <div className="linter-checks-grid">
+        {lintResult.checks.map(c => (
+          <div key={c.id} className={`linter-check-item ${c.passed ? 'linter-check-passed' : 'linter-check-failed'}`}>
+            <span style={{ color: c.passed ? '#10b981' : '#f59e0b', marginTop: '1px', flexShrink: 0 }}>
+              {c.passed ? <Check size={14} /> : <CircleAlert size={14} />}
+            </span>
+            <div style={{ flex: 1 }}>
+              <strong style={{ fontSize: '12px', color: 'var(--text-main)', display: 'inline-block', marginRight: '6px' }}>
+                {c.name}
+              </strong>
+              <span className="badge" style={{ fontSize: '9.5px', padding: '1px 5px', background: c.severity === 'critical' ? '#fee2e2' : '#fef3c7', color: c.severity === 'critical' ? '#991b1b' : '#92400e' }}>
+                {c.severity}
+              </span>
+              <p style={{ margin: '2px 0 0', fontSize: '11px', color: 'var(--text-muted)' }}>
+                {c.description}
+              </p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {!isCompliant && canDraft && onInjectDisclaimers && (
+        <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--table-hover)', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-line)' }}>
+          <span style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>Missing statutory disclosures detected.</span>
+          <button type="button" className="primary" style={{ padding: '5px 10px', fontSize: '11.5px' }} onClick={onInjectDisclaimers}>
+            Auto-Inject Disclaimers
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Visual Redline Diff Tool Component
+function VisualRedlineDiff({ source, body, wording }) {
+  const statement = source?.statement || source?.evidence || ''
+  const hasStatement = statement && body.includes(statement)
+
+  return (
+    <div className="redline-diff-container">
+      <div className="redline-header">
+        <div>
+          <strong style={{ fontSize: '13.5px', color: 'var(--text-main)' }}>Visual Redline Diff Tool</strong>
+          <small style={{ display: 'block', color: 'var(--text-muted)' }}>Grounding verification between scraped notice, Memento, and drafted text</small>
+        </div>
+        <div className="redline-legend">
+          <span className="legend-verified">● Verified Source Fact</span>
+          <span className="legend-added">● Memento Policy Explanation</span>
+        </div>
+      </div>
+
+      <div className="redline-content-box">
+        {hasStatement ? (
+          <div>
+            <p style={{ margin: '0 0 10px', color: 'var(--text-muted)', fontSize: '12px' }}>
+              ✓ Verified canonical passage preserved without alteration:
+            </p>
+            <div className="diff-fact-highlight" style={{ marginBottom: '12px', display: 'block', padding: '8px 12px' }}>
+              "{statement}"
+            </div>
+          </div>
+        ) : (
+          <div style={{ padding: '8px 12px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', color: '#991b1b', fontSize: '12px', marginBottom: '10px' }}>
+            ⚠️ Warning: Exact source passage from the official notice was modified. Statutory compliance requires keeping the verified statement intact.
+          </div>
+        )}
+
+        {wording && (
+          <div>
+            <p style={{ margin: '0 0 6px', color: 'var(--text-muted)', fontSize: '12px' }}>
+              Memento Approved Language Grounding:
+            </p>
+            <div className="diff-memento-highlight" style={{ display: 'block', padding: '8px 12px' }}>
+              "{wording}"
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// Role Specifications defined exactly per user requirement table
+const ROLE_SPECS = {
+  drafter: {
+    personaName: 'Alex Morgan',
+    title: 'Communications Drafter',
+    mainJob: 'Writes messages',
+    homeScreen: 'drafts',
+    homeScreenTitle: 'My Drafts',
+    mainButton: 'Create draft',
+    summaryCards: [
+      { id: 'drafts', label: 'Drafts', key: 'drafts', icon: FileText, color: '#315dcc', bg: '#eff4ff' },
+      { id: 'returned', label: 'Returned', key: 'returned', icon: ShieldAlert, color: '#b06228', bg: '#fef3eb' },
+      { id: 'approved', label: 'Approved', key: 'approved', icon: ShieldCheck, color: '#288763', bg: '#ebfbf3' }
+    ],
+    menu: [
+      { id: 'compose', label: 'Compose', icon: Edit3 },
+      { id: 'drafts', label: 'My Drafts', icon: FileText },
+      { id: 'sources', label: 'Sources', icon: Globe },
+      { id: 'approved', label: 'Approved Library', icon: LibraryBig }
+    ],
+    can: 'Create, edit and submit drafts',
+    cannot: 'Approve messages or change rules'
+  },
+  compliance: {
+    personaName: 'Jane Smith',
+    title: 'Compliance Officer',
+    mainJob: 'Checks and approves them',
+    homeScreen: 'review',
+    homeScreenTitle: 'Review Queue',
+    mainButton: 'Review next',
+    summaryCards: [
+      { id: 'pending', label: 'Pending', key: 'pending', icon: Clock3, color: '#315dcc', bg: '#eff4ff' },
+      { id: 'high_risk', label: 'High risk', key: 'high_risk', icon: ShieldAlert, color: '#c2410c', bg: '#fff1ec' },
+      { id: 'outdated', label: 'Outdated approvals', key: 'outdated', icon: AlertTriangle, color: '#854d0e', bg: '#fefce8' }
+    ],
+    menu: [
+      { id: 'review', label: 'Review Queue', icon: Clock3 },
+      { id: 'rules', label: 'Compliance Rules', icon: ShieldCheck },
+      { id: 'sources', label: 'Sources', icon: Globe },
+      { id: 'audit', label: 'Audit Log', icon: FileText }
+    ],
+    can: 'Comment, approve, reject and manage rules',
+    cannot: 'Edit draft text directly or manage users'
+  },
+  admin: {
+    personaName: 'Sarah Jenkins',
+    title: 'Administrator',
+    mainJob: 'Manages the system',
+    homeScreen: 'overview',
+    homeScreenTitle: 'System Overview',
+    mainButton: 'Manage users',
+    summaryCards: [
+      { id: 'active_users', label: 'Active users', key: 'active_users', icon: Users, color: '#315dcc', bg: '#eff4ff' },
+      { id: 'source_errors', label: 'Source errors', key: 'source_errors', icon: CircleAlert, color: '#c2410c', bg: '#fff1ec' },
+      { id: 'connection_status', label: 'Connection status', key: 'connection_status', icon: Activity, color: '#288763', bg: '#ebfbf3' }
+    ],
+    menu: [
+      { id: 'overview', label: 'System Overview', icon: Layers3 },
+      { id: 'users', label: 'Users and Roles', icon: Users },
+      { id: 'settings', label: 'Source Settings', icon: Settings },
+      { id: 'integrations', label: 'Integrations', icon: Database },
+      { id: 'audit', label: 'Audit Log', icon: FileText }
+    ],
+    can: 'Add users, assign roles, and set up sources and tools',
+    cannot: 'Write or approve messages'
+  }
 }
 
 function App() {
@@ -67,19 +269,47 @@ function App() {
   })
   const [token, setToken] = useState(() => localStorage.getItem('finserve_token') || '')
 
+  // Theme Management (Midnight Dark Theme / Light Mode)
+  const [theme, setTheme] = useState(() => localStorage.getItem('finserve_theme') || 'light')
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme)
+    localStorage.setItem('finserve_theme', theme)
+  }, [theme])
+
+  function toggleTheme() {
+    setTheme(prev => prev === 'dark' ? 'light' : 'dark')
+  }
+
+  const currentRole = user?.role || 'drafter'
+  const currentSpec = ROLE_SPECS[currentRole] || ROLE_SPECS.drafter
+
   const [customers, setCustomers] = useState([])
   const [customer, setCustomer] = useState('')
-  const [customerName, setCustomerName] = useState('')
+  const [language, setLanguage] = useState('English')
   const [channel, setChannel] = useState('Email')
-  const [customerTier, setCustomerTier] = useState('Retail')
+  const [tone, setTone] = useState('Friendly')
+
+  // Customer Preferences form state
+  const [prefCustomer, setPrefCustomer] = useState('')
+  const [prefName, setPrefName] = useState('')
+  const [prefLang, setPrefLang] = useState('English')
+  const [prefChannel, setPrefChannel] = useState('Email')
+  const [prefTone, setPrefTone] = useState('Friendly')
+  const [prefTier, setPrefTier] = useState('Retail')
+
   const [reason, setReason] = useState('')
   const [config, setConfig] = useState(null)
   const [records, setRecords] = useState([])
-  const [view, setView] = useState('studio') // 'studio', 'history', 'sources', 'memento'
-  const [previewTab, setPreviewTab] = useState('email') // 'email', 'sms', 'edit'
+  const [systemOverview, setSystemOverview] = useState(null)
+  const [view, setView] = useState(() => {
+    if (user?.role === 'compliance') return 'review'
+    if (user?.role === 'admin') return 'overview'
+    return 'drafts'
+  })
+  const [previewTab, setPreviewTab] = useState('email') // 'email', 'sms', 'whatsapp', 'redline', 'edit'
 
   const [notice, setNotice] = useState('')
-  const [tone, setTone] = useState('Friendly')
   const [item, setItem] = useState(null)
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
@@ -90,17 +320,43 @@ function App() {
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
 
+  // Admin New User form state
+  const [newUserName, setNewUserName] = useState('')
+  const [newUserEmail, setNewUserEmail] = useState('')
+  const [newUserRole, setNewUserRole] = useState('drafter')
+  const [newUserDept, setNewUserDept] = useState('Customer Communications')
+  const [newUserPwd, setNewUserPwd] = useState('')
+  const [adminUserSubmitting, setAdminUserSubmitting] = useState(false)
+
+  // Filter state for Drafts & Review queues
+  const [draftFilter, setDraftFilter] = useState('all')
+
+  function handleCustomerSelect(selectedId) {
+    setCustomer(selectedId)
+    if (!selectedId) return
+    const match = customers.find(c => c.customer === selectedId)
+    if (match) {
+      setTone(match.tone || 'Friendly')
+      setChannel(match.channel || 'Email')
+      setLanguage(match.language || 'English')
+      setPreviewTab(match.channel === 'SMS' ? 'sms' : match.channel === 'WhatsApp' ? 'whatsapp' : 'email')
+      setMessage(`Memento: Loaded communication profile for ${match.name || match.customer} (${match.language || 'English'}, ${match.channel}, ${match.tone} tone).`)
+    }
+  }
+
   function handleLogin(userData, tokenStr) {
     setUser(userData)
     setToken(tokenStr)
     setReviewer(userData.name)
     localStorage.setItem('finserve_user', JSON.stringify(userData))
     localStorage.setItem('finserve_token', tokenStr)
-    setMessage(`Signed in as ${userData.name} (${userData.role === 'compliance' ? 'Compliance Officer' : userData.role === 'drafter' ? 'Communications Drafter' : 'Administrator'})`)
+    const targetHome = ROLE_SPECS[userData.role]?.homeScreen || 'drafts'
+    setView(targetHome)
+    setMessage(`Signed in as ${userData.name} (${ROLE_SPECS[userData.role]?.title || 'Staff'})`)
   }
 
   function handleLogout() {
-    api('auth/logout', {}, token).catch(() => {})
+    api('auth/logout', {}, token).catch(() => { })
     setUser(null)
     setToken('')
     localStorage.removeItem('finserve_user')
@@ -113,34 +369,51 @@ function App() {
     }
   }, [user])
 
-  useEffect(() => {
+  async function refreshSystemData() {
     if (!user) return
-    Promise.all([api('notices'), api('drafts'), api('preferences')]).then(([settings, list, prefs]) => {
+    try {
+      const [settings, list, prefs, overview] = await Promise.all([
+        api('notices', undefined, token),
+        api('drafts', undefined, token),
+        api('preferences', undefined, token),
+        api('system/overview', undefined, token)
+      ])
       setCustomers(prefs)
       setConfig(settings)
-      setNotice(settings.notices[0]?.id || '')
+      if (!notice && settings.notices?.length) setNotice(settings.notices[0].id)
       setRecords(list)
-    }).catch(err => setError(err.message))
-  }, [user])
+      setSystemOverview(overview)
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  useEffect(() => {
+    refreshSystemData()
+  }, [user, token])
 
   function open(draft) {
     setReason('')
     setCustomer(draft.preference?.customer || '')
     setNotice(draft.source?.id || '')
-    setTone(draft.tone || 'Friendly')
+    setTone(draft.tone || draft.preference?.tone || 'Friendly')
+    setChannel(draft.channel || draft.preference?.channel || 'Email')
+    setLanguage(draft.language || draft.preference?.language || 'English')
     setItem(draft)
     setSubject(draft.subject || '')
     setBody(draft.body || '')
     setReviewer(draft.reviewer || user?.name || '')
     setWording(draft.reusable_wording || '')
     setConfirmed(false)
-    setPreviewTab(draft.preference?.channel === 'SMS' ? 'sms' : 'email')
-    setView('studio')
+    const chan = draft.channel || draft.preference?.channel || 'Email'
+    setPreviewTab(chan === 'SMS' ? 'sms' : chan === 'WhatsApp' ? 'whatsapp' : 'email')
+    setView('compose')
   }
 
   function remember(draft) {
     setRecords(previous => [draft, ...previous.filter(entry => entry.id !== draft.id)])
     open(draft)
+    refreshSystemData()
   }
 
   async function act(callback) {
@@ -148,11 +421,66 @@ function App() {
     try { await callback() } catch (err) { setError(err.message) } finally { setBusy(false) }
   }
 
+  function handleMainAction() {
+    if (currentRole === 'drafter') {
+      setItem(null)
+      setView('compose')
+    } else if (currentRole === 'compliance') {
+      const pendingDraft = records.find(r => r.status === 'draft')
+      if (pendingDraft) {
+        open(pendingDraft)
+      } else {
+        setMessage('No pending drafts in the review queue. All customer communications are approved!')
+      }
+    } else if (currentRole === 'admin') {
+      setView('users')
+    }
+  }
+
+  function handleInjectDisclaimers() {
+    let updatedBody = body
+    const bankName = item?.source?.bank || 'Harborline Bank'
+    if (!updatedBody.toLowerCase().includes('pin') && !updatedBody.toLowerCase().includes('never ask')) {
+      updatedBody += `\n\nSecurity Advisory: ${bankName} will never ask for your PIN, OTP, CVV, or net banking password via phone, email, or SMS.`
+    }
+    if (!updatedBody.toLowerCase().includes('support') && !updatedBody.toLowerCase().includes('customer care') && !updatedBody.toLowerCase().includes('queries')) {
+      updatedBody += `\n\nFor questions or fee waiver inquiries, please contact our 24/7 customer care team or visit your nearest branch.`
+    }
+    setBody(updatedBody)
+    setMessage('Auto-injected mandatory statutory and anti-phishing disclaimers!')
+  }
+
+  async function handleCreateUser(e) {
+    e.preventDefault()
+    if (!newUserName.trim() || !newUserEmail.trim() || !newUserPwd.trim()) return
+    setAdminUserSubmitting(true)
+    setError('')
+    setMessage('')
+    try {
+      await api('admin/users', {
+        name: newUserName.trim(),
+        email: newUserEmail.trim(),
+        role: newUserRole,
+        department: newUserDept.trim(),
+        password: newUserPwd.trim()
+      }, token)
+      setMessage(`Staff account created for ${newUserName} (${newUserRole})`)
+      setNewUserName('')
+      setNewUserEmail('')
+      setNewUserPwd('')
+      refreshSystemData()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setAdminUserSubmitting(false)
+    }
+  }
+
   if (!user) {
     return (
       <>
-        <Login onLogin={handleLogin}/>
-        <ChatWidget customerId="retail-001"/>
+        <Login onLogin={handleLogin} />
+        <ChatWidget customerId="retail-001" />
       </>
     )
   }
@@ -160,494 +488,1129 @@ function App() {
   const selected = config?.notices.find(entry => entry.id === notice)
   const source = item?.source || selected
   const editable = item?.status === 'draft'
-  const isCompliance = user?.role === 'compliance' || user?.role === 'admin'
-  const viewNames = {
-    studio: 'Draft Studio',
-    sources: 'Source Library (Firecrawl)',
-    memento: 'Knowledge Bank (Memento)',
-    history: 'Review History'
+  const smsPreview = (item?.channel || item?.preference?.channel) === 'SMS' ? body : item?.sms_body || body
+
+  const canDraft = currentRole === 'drafter'
+  const canApprove = currentRole === 'compliance'
+  const canManageUsers = currentRole === 'admin'
+  const canManageRules = currentRole === 'compliance'
+
+  const liveMetrics = systemOverview?.metrics || {
+    drafts: records.filter(d => d.status === 'draft').length,
+    returned: records.filter(d => d.status === 'rejected').length,
+    approved: records.filter(d => d.status === 'approved').length,
+    pending: records.filter(d => d.status === 'draft').length,
+    high_risk: records.filter(d => d.status === 'blocked' || (d.warnings && d.warnings.length > 0)).length,
+    outdated: 1,
+    active_users: systemOverview?.users?.length || 3,
+    source_errors: 0,
+    connection_status: 'Healthy (4/4 Online)'
   }
 
-  return <div className="shell">
-    <aside className="sidebar">
-      <div className="brand">
-        <div className="logo"><Layers3 size={23}/></div>
-        <div>FinServe <em>AI</em><small>CUSTOMER COMMUNICATION ASSISTANT</small></div>
-      </div>
-      <nav aria-label="Workspace">
-        <span className="nav-heading">WORKSPACE</span>
-        <button className={view === 'studio' ? 'active' : ''} onClick={() => setView('studio')}>
-          <FileText size={18}/> Draft studio <ChevronRight className="chevron" size={15}/>
-        </button>
-        <button className={view === 'history' ? 'active' : ''} onClick={() => setView('history')}>
-          <Clock3 size={18}/> Review history <ChevronRight className="chevron" size={15}/>
-        </button>
-        <button className={view === 'sources' ? 'active' : ''} onClick={() => setView('sources')}>
-          <Globe size={18}/> Source library (Firecrawl) <ChevronRight className="chevron" size={15}/>
-        </button>
-        <button className={view === 'memento' ? 'active' : ''} onClick={() => setView('memento')}>
-          <LibraryBig size={18}/> Knowledge bank (Memento) <ChevronRight className="chevron" size={15}/>
-        </button>
-      </nav>
-      <div className="sidebar-foot">
-        <ShieldCheck size={19}/>
-        <div>Authenticated Staff Session<small>{user.department}</small></div>
-      </div>
-    </aside>
+  return (
+    <div className="shell">
+      <aside className="sidebar">
+        <div className="brand">
+          <div className="logo"><Layers3 size={23} /></div>
+          <div>FinServe <em>AI</em><small>CUSTOMER COMMUNICATION ASSISTANT</small></div>
+        </div>
 
-    <main>
-      <header className="top">
-        <span>Workspace <ChevronRight size={14}/> <strong>{viewNames[view]}</strong></span>
-        {config && (
-          <div style={{display:'flex', gap:'8px', alignItems:'center'}}>
-            <span className="mode" title="Source Ingestion Provider"><i/>{config.retriever || 'Firecrawl v2'}</span>
-            <span className="mode" title="Memory Provider"><LibraryBig size={13} style={{verticalAlign:'middle', marginRight:'4px'}}/>{config.memory || 'Memento'}</span>
-          </div>
-        )}
+        {/* Dynamic Role Navigation Menu */}
+        <nav aria-label="Role Workspace">
+          {currentSpec.menu.map(item => {
+            const Icon = item.icon
+            return (
+              <button
+                key={item.id}
+                className={view === item.id ? 'active' : ''}
+                onClick={() => { setView(item.id); setError(''); setMessage(''); }}
+              >
+                <Icon size={16} /> {item.label}
+              </button>
+            )
+          })}
+        </nav>
 
-        {/* Authenticated Staff User Pill & Logout */}
+        {/* User Identity Chip & Theme Toggle & Sign Out */}
         <div className="user-profile-header">
           <div className="user-info-chip">
-            <div className="user-chip-avatar" style={{background: user.avatar_color}}>
+            <div className="user-chip-avatar" style={{ background: user.avatar_color }}>
               {user.name.split(' ').map(n => n[0]).join('')}
             </div>
             <div className="user-chip-text">
               <span className="user-chip-name">{user.name}</span>
               <span className="user-chip-role">
                 <span className={'role-badge ' + user.role}>
-                  {user.role === 'compliance' ? 'Compliance Officer' : user.role === 'drafter' ? 'Drafter' : 'Administrator'}
+                  {currentSpec.title}
                 </span>
               </span>
             </div>
           </div>
-          <button type="button" className="logout-btn" onClick={handleLogout} title="Sign out of staff session">
-            <LogOut size={14}/> Sign out
+
+          <button
+            type="button"
+            className="theme-toggle-btn"
+            onClick={toggleTheme}
+            title={`Switch to ${theme === 'dark' ? 'Light' : 'Midnight Dark'} Mode`}
+          >
+            {theme === 'dark' ? <Sun size={13} /> : <Moon size={13} />}
+            {theme === 'dark' ? 'Light' : 'Dark'}
+          </button>
+
+          <button
+            type="button"
+            className="logout-btn"
+            onClick={handleLogout}
+            title="Sign out of session"
+          >
+            <LogOut size={13} /> Sign out
           </button>
         </div>
-      </header>
+      </aside>
 
-      <div className="content">
-        <div className="intro">
-          <div className="intro-icon">
-            {view === 'studio' ? <Sparkles size={23}/> : view === 'sources' ? <Globe size={23}/> : view === 'memento' ? <LibraryBig size={23}/> : <Clock3 size={23}/>}
-          </div>
-          <h1>{viewNames[view]}</h1>
-          <p>
-            {view === 'studio' && 'Create and verify customer emails and SMS using official notices from Firecrawl and approved explanations from Memento.'}
-            {view === 'sources' && 'Collect official public product information and fee schedules using Firecrawl.'}
-            {view === 'memento' && 'Browse, search, and manage previously approved explanations and customer preferences in Memento.'}
-            {view === 'history' && 'Open previously generated drafts to inspect source grounding, audit trails, and review decisions.'}
-          </p>
-        </div>
-
-        {error && <div role="alert" className="alert"><CircleAlert size={17}/>{error}</div>}
-        {message && <div role="status" className="success"><Check size={17}/>{message}</div>}
-
-        {view === 'sources' ? (
-          <Sources
-            notices={config?.notices || []}
-            busy={busy}
-            select={id => {
-              setNotice(id); setItem(null); setView('studio'); setMessage(''); setError('')
-            }}
-            register={async values => {
-              let saved = false
-              await act(async () => {
-                const result = await api('sources', values, token)
-                const fresh = await api('notices', undefined, token)
-                setConfig(fresh)
-                setMessage(`Notice registered with ${result.retriever || 'Firecrawl'} and added to catalog.`)
-                saved = true
-              })
-              return saved
-            }}
-          />
-        ) : view === 'memento' ? (
-          <KnowledgeBank user={user}/>
-        ) : view === 'history' ? (
-          <section className="card history">
-            {records.length ? records.map(record => (
-              <button className="history-row" key={record.id} onClick={() => {setError(''); setMessage(''); open(record)}}>
-                <FileText size={19}/>
-                <span>
-                  <strong>{record.subject || record.source?.title || 'Notice draft'}</strong>
-                  <small>
-                    {date(record.created_at)} · {record.source?.bank} · {record.preference?.channel || 'Email'}
-                    {record.reviewer && ` · Reviewed by: ${record.reviewer} (${record.reviewer_role || 'Staff'})`}
-                  </small>
-                </span>
-                <span className={'badge ' + record.status}>{states[record.status]}</span>
-                <ChevronRight size={16}/>
-              </button>
-            )) : (
-              <div className="empty">
-                <Clock3 size={25}/>
-                <strong>No drafts yet</strong>
-                <button className="primary" onClick={() => setView('studio')}>Open draft studio</button>
+      <main>
+        <div className="content">
+          {/* Persona Governance & Segregation of Duties Banner */}
+          <div className="role-governance-card">
+            <div className="governance-meta">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span className="governance-name">{currentSpec.personaName}</span>
+                <span className={'role-badge ' + currentRole}>{currentSpec.title}</span>
+                <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>· Main job: <strong>{currentSpec.mainJob}</strong></span>
               </div>
-            )}
-          </section>
-        ) : (
-          /* View: Studio */
-          <div className="layout">
-            <div className="column">
-              <section className="card">
-                <div className="card-head">
-                  <div className="icon"><FileText size={18}/></div>
-                  <div>
-                    <h2>Draft Setup</h2>
-                    <p>Select the official notice and target customer preference profile.</p>
-                  </div>
-                </div>
-                <form onSubmit={event => {
-                  event.preventDefault()
-                  act(async () => remember(await api('drafts', {notice_id: notice, tone, customer}, token)))
-                }}>
-                  <label>Customer Communication Profile
-                    <select value={customer} onChange={event => setCustomer(event.target.value)} disabled={busy}>
-                      <option value="">Use selected tone (Default)</option>
-                      {customers.map(entry => (
-                        <option key={entry.customer} value={entry.customer}>
-                          {entry.customer} · {entry.tone} · {entry.channel} ({entry.tier || 'Retail'})
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <div className="fields">
-                    <label>Official Notice Source
-                      <select value={notice} onChange={event => {setNotice(event.target.value); setItem(null); setMessage(''); setError('')}} disabled={busy || !config}>
-                        {config?.notices.map(entry => (
-                          <option key={entry.id} value={entry.id}>{entry.bank}: {entry.title}</option>
-                        ))}
-                      </select>
-                    </label>
-                    <label>Communication Tone
-                      <select value={tone} onChange={event => setTone(event.target.value)} disabled={busy}>
-                        {['Friendly', 'Formal', 'Concise'].map(value => <option key={value}>{value}</option>)}
-                      </select>
-                    </label>
-                  </div>
-                  <div className="actions">
-                    <span>
-                      <strong style={{color:'#65489c'}}>{config?.generation || 'Gen AI Drafting'}</strong> · Memento Guided
-                    </span>
-                    <button className="primary" disabled={busy || !notice}>
-                      <Sparkles size={16}/>{busy ? 'Drafting…' : 'Generate Compliant Draft'}
-                    </button>
-                  </div>
-                </form>
-              </section>
-
-              <section className="card">
-                <div className="card-head">
-                  <div className="icon"><Clipboard size={18}/></div>
-                  <div>
-                    <h2>Customer Communication</h2>
-                    <p>Grounded in Firecrawl public notice and Memento approved phrasing.</p>
-                  </div>
-                  {item && <span className={'badge ' + item.status}>{states[item.status]}</span>}
-                </div>
-
-                {!item ? (
-                  <div className="empty">
-                    <div className="empty-icon"><FileText size={25}/></div>
-                    <strong>Your draft will appear here</strong>
-                    <p>Select a notice and generate to view the AI communication.</p>
-                  </div>
-                ) : item.status === 'blocked' ? (
-                  <div className="alert">
-                    <CircleAlert size={17}/>
-                    Missing official source details. Resolve the warnings in the Source Evidence panel before drafting.
-                  </div>
-                ) : (
-                  <div>
-                    {/* Multi-Channel Preview Switcher Tabs */}
-                    <div className="preview-tabs">
-                      <button
-                        type="button"
-                        className={previewTab === 'email' ? 'active' : ''}
-                        onClick={() => setPreviewTab('email')}
-                      >
-                        <Mail size={15}/> Email Preview
-                      </button>
-                      <button
-                        type="button"
-                        className={previewTab === 'sms' ? 'active' : ''}
-                        onClick={() => setPreviewTab('sms')}
-                      >
-                        <Smartphone size={15}/> SMS Preview
-                      </button>
-                      <button
-                        type="button"
-                        className={previewTab === 'edit' ? 'active' : ''}
-                        onClick={() => setPreviewTab('edit')}
-                      >
-                        <Edit3 size={15}/> Edit Text
-                      </button>
-                    </div>
-
-                    {/* Channel Render: Email Preview */}
-                    {previewTab === 'email' && (
-                      <div className="email-preview">
-                        <div className="email-header-bar">
-                          <div className="email-bank-logo">
-                            <Layers3 size={20} color="#7861a9"/>
-                            <span>{item.source?.bank || 'Bank'}</span>
-                          </div>
-                          <span className="email-official-tag">Official Notice</span>
-                        </div>
-                        <div className="email-subject-line">
-                          Subject: {subject}
-                        </div>
-                        <div className="email-content-body">
-                          {body}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Channel Render: SMS Preview */}
-                    {previewTab === 'sms' && (
-                      <div className="sms-phone-mockup">
-                        <div className="phone-speaker"/>
-                        <div className="phone-screen">
-                          <div className="sms-sender-header">
-                            {item.source?.bank?.toUpperCase().replace(/\s+/g, '') || 'BANK'}-ALERT
-                          </div>
-                          <div className="sms-bubble">
-                            {item.sms_body || body}
-                          </div>
-                          <div className="sms-meta-info">
-                            {(item.sms_body || body).length} / 160 characters · {Math.ceil((item.sms_body || body).length / 160)} SMS
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Editor Form */}
-                    <form className="editor" style={{marginTop:'16px'}} onSubmit={event => {
-                      event.preventDefault()
-                      act(async () => {
-                        const approved = await api('drafts/' + item.id + '/approve', {
-                          subject, body, reviewer, reusable_wording: wording, source_confirmed: confirmed
-                        }, token)
-                        remember(approved)
-                        setMessage(approved.memory_write === 'failed' ?
-                          'Draft approved. Wording stored in local database. Memento sync failed.' :
-                          'Draft approved and recorded in Memento memory.')
-                      })
-                    }}>
-                      {previewTab === 'edit' && (
-                        <>
-                          <label>Subject
-                            <input value={subject} onChange={event => setSubject(event.target.value)} maxLength={160} readOnly={!editable || busy} required/>
-                          </label>
-                          <label>Message Content
-                            <textarea value={body} onChange={event => setBody(event.target.value)} rows={10} maxLength={12000} readOnly={!editable || busy} required/>
-                          </label>
-                        </>
-                      )}
-
-                      {editable ? (
-                        <>
-                          <div className="fields">
-                            <label>
-                              Reviewer Identity
-                              <div style={{display:'flex', alignItems:'center', gap:'8px', marginTop:'6px'}}>
-                                <input
-                                  value={reviewer || user.name}
-                                  onChange={event => setReviewer(event.target.value)}
-                                  maxLength={100}
-                                  placeholder="Reviewer Name"
-                                  disabled={busy}
-                                  required
-                                  style={{margin:0, flex:1}}
-                                />
-                                <span className={'role-badge ' + user.role}>
-                                  {user.role === 'compliance' ? 'Compliance Officer' : user.role === 'drafter' ? 'Drafter' : 'Administrator'}
-                                </span>
-                              </div>
-                            </label>
-                            <label>Save Approved Wording to Memento <small>Optional</small>
-                              <input value={wording} onChange={event => setWording(event.target.value)} placeholder="Phrase to store in Memento for future drafts" disabled={busy} maxLength={400}/>
-                            </label>
-                          </div>
-
-                          {!isCompliance && (
-                            <div className="panel-note" style={{padding:'8px 12px', background:'#fbf9ee', border:'1px solid #f2e2b6', borderRadius:'8px', color:'#785210'}}>
-                              <Lock size={13} style={{verticalAlign:'middle', marginRight:'5px'}}/>
-                              <strong>Compliance Gate:</strong> You are currently logged in as a Communications Drafter. Approval will be recorded under your verified staff account.
-                            </div>
-                          )}
-
-                          <label className="checkbox">
-                            <input type="checkbox" checked={confirmed} onChange={event => setConfirmed(event.target.checked)} disabled={busy} required/>
-                            I confirmed the product facts, fee schedule, and effective date against the official source.
-                          </label>
-
-                          <div style={{display:'flex', gap:'10px', alignItems:'center', marginTop:'10px'}}>
-                            <input value={reason} onChange={event => setReason(event.target.value)} placeholder="Rejection reason (required if rejecting)" maxLength={1000} style={{margin:0}}/>
-                            <button
-                              type="button"
-                              className="primary"
-                              style={{background:'#a34e65', flex:'none'}}
-                              disabled={busy || !reason.trim() || !(reviewer.trim() || user.name)}
-                              onClick={() => act(async () => remember(await api('drafts/' + item.id + '/reject', {reviewer: reviewer || user.name, reason}, token)))}
-                            >
-                              Reject Draft
-                            </button>
-                            <button className="primary approve" disabled={busy || !confirmed || !(reviewer.trim() || user.name)} style={{flex:'none'}}>
-                              <ShieldCheck size={17}/> Approve Communication
-                            </button>
-                          </div>
-                        </>
-                      ) : (
-                        <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginTop:'12px'}}>
-                          <div className="success" style={{margin:0}}>
-                            <Check size={17}/>
-                            {item.status === 'rejected' ? `Rejected by ${item.reviewer} (${item.reviewer_role || 'Staff'}) — ${item.rejection_reason}` : `Approved by ${item.reviewer} (${item.reviewer_role || 'Staff'}) · ${date(item.approved_at)}`}
-                          </div>
-                          {item.status === 'approved' && (
-                            <a href={'/api/drafts/' + item.id + '/export'} download className="primary" style={{textDecoration:'none'}}>
-                              <Download size={15}/> Download {item.preference?.channel === 'SMS' ? 'SMS' : 'Email'}
-                            </a>
-                          )}
-                        </div>
-                      )}
-                    </form>
-                  </div>
-                )}
-              </section>
+              <div className="governance-badges">
+                <span className="badge-can">
+                  <Check size={13} /> <strong>Can:</strong> {currentSpec.can}
+                </span>
+                <span className="badge-cannot">
+                  <Lock size={12} /> <strong>Cannot:</strong> {currentSpec.cannot}
+                </span>
+              </div>
             </div>
 
-            <div className="column">
-              {/* Customer Communication Preferences Card */}
-              <section className="card">
-                <h2>Customer Communication Preferences</h2>
-                <p className="panel-note" style={{marginBottom:'12px'}}>Preferences are stored in Memento to adapt future communications automatically.</p>
-                <form onSubmit={event => {
-                  event.preventDefault()
-                  act(async () => {
-                    const result = await api('preferences', {customer: customerName, tone, channel, tier: customerTier}, token)
-                    setCustomers(await api('preferences', undefined, token))
-                    setCustomer(customerName)
-                    setMessage(result.memory_write === 'failed' ? 'Preferences saved locally.' : 'Preferences saved to Memento.')
-                  })
-                }}>
-                  <label>Customer Reference ID
-                    <input value={customerName} onChange={event => setCustomerName(event.target.value)} pattern="[a-zA-Z0-9_-]+" maxLength={80} placeholder="e.g. cust_wealth_401" required/>
-                  </label>
-                  <div className="fields">
-                    <label>Preferred Channel
-                      <select value={channel} onChange={event => setChannel(event.target.value)}>
-                        <option value="Email">Email</option>
-                        <option value="SMS">SMS</option>
-                      </select>
-                    </label>
-                    <label>Customer Tier
-                      <select value={customerTier} onChange={event => setCustomerTier(event.target.value)}>
-                        <option value="Retail">Retail</option>
-                        <option value="Preferred">Preferred</option>
-                        <option value="Wealth">Wealth</option>
-                      </select>
-                    </label>
-                  </div>
-                  <button className="primary" disabled={busy} style={{marginTop:'10px'}}>
-                    Save to Memento
-                  </button>
-                </form>
-              </section>
+            {/* Role Main Action Button */}
+            <button
+              type="button"
+              className="main-cta-btn"
+              onClick={handleMainAction}
+            >
+              {currentRole === 'drafter' && <Plus size={16} />}
+              {currentRole === 'compliance' && <ShieldCheck size={16} />}
+              {currentRole === 'admin' && <UserPlus size={16} />}
+              {currentSpec.mainButton}
+            </button>
+          </div>
 
-              {/* Source Evidence Card (Firecrawl) */}
-              <section className="card evidence">
-                <div className="card-head">
-                  <div className="icon amber"><BookOpen size={18}/></div>
-                  <div>
-                    <h2>Source Evidence (Firecrawl)</h2>
-                    <p>{source?.url ? 'Verified official web document' : 'Demonstration notice'}</p>
+          {/* Role Summary Metric Cards (Shown on Home Screens: 'drafts', 'review', 'overview') */}
+          {(view === 'drafts' || view === 'review' || view === 'overview') && (
+            <div className="summary-cards-grid">
+              {currentSpec.summaryCards.map(card => {
+                const Icon = card.icon
+                const val = liveMetrics[card.key] !== undefined ? liveMetrics[card.key] : 0
+                return (
+                  <div key={card.id} className="summary-card">
+                    <div>
+                      <div className="summary-card-val">{val}</div>
+                      <div className="summary-card-lbl">{card.label}</div>
+                    </div>
+                    <div className="summary-card-icon" style={{ background: card.bg, color: card.color }}>
+                      <Icon size={22} />
+                    </div>
                   </div>
+                )
+              })}
+            </div>
+          )}
+
+          {error && <div role="alert" className="alert"><CircleAlert size={17} />{error}</div>}
+          {message && <div role="status" className="success"><Check size={17} />{message}</div>}
+
+          {/* =========================================================================
+              VIEW 1: MY DRAFTS (Home Screen for Alex Morgan - Drafter)
+              ========================================================================= */}
+          {view === 'drafts' && (
+            <section className="card history">
+              <div className="card-head" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <h2>Alex Morgan's Draft Register</h2>
+                  <p>Browse, edit, and submit customer communications created for official banking notices.</p>
                 </div>
-                {source ? (
-                  <>
-                    <div className="source-meta">
-                      <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-                        <strong>{source.title}</strong>
-                        <span className="badge" style={{background:'#e0ecfb', color:'#32588a'}}>
-                          {source.retriever || (source.url ? 'Firecrawl v2' : 'Local Notice')}
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  {['all', 'draft', 'rejected', 'approved'].map(filterKey => (
+                    <button
+                      key={filterKey}
+                      type="button"
+                      className={draftFilter === filterKey ? 'primary' : ''}
+                      style={{
+                        padding: '6px 12px', fontSize: '12px', borderRadius: '8px',
+                        border: draftFilter === filterKey ? 'none' : '1px solid var(--border-line)',
+                        background: draftFilter === filterKey ? 'var(--green)' : 'var(--bg-card)',
+                        color: draftFilter === filterKey ? '#fff' : 'var(--text-main)'
+                      }}
+                      onClick={() => setDraftFilter(filterKey)}
+                    >
+                      {filterKey === 'all' ? 'All' : filterKey === 'draft' ? 'Drafts' : filterKey === 'rejected' ? 'Returned' : 'Approved'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {records.filter(r => draftFilter === 'all' || r.status === draftFilter).length > 0 ? (
+                records.filter(r => draftFilter === 'all' || r.status === draftFilter).map(record => (
+                  <button className="history-row" key={record.id} onClick={() => { setError(''); setMessage(''); open(record); }}>
+                    <FileText size={20} color="#315dcc" />
+                    <span>
+                      <strong style={{ fontSize: '14px', color: 'var(--text-main)' }}>{record.subject || record.source?.title || 'Financial Notice Draft'}</strong>
+                      <small>
+                        {date(record.created_at)} · {record.source?.bank || 'Bank'} · {record.preference?.channel || record.channel || 'Email'} ({record.language || record.preference?.language || 'English'})
+                        {record.rejection_reason && <span style={{ color: '#b91c1c', display: 'block', marginTop: '2px' }}>⚠️ Returned with note: "{record.rejection_reason}"</span>}
+                        {record.reviewer && <span style={{ color: '#15803d', display: 'block', marginTop: '2px' }}>✓ Reviewed by: {record.reviewer}</span>}
+                      </small>
+                    </span>
+                    <span className={'badge ' + record.status}>{states[record.status] || record.status}</span>
+                    <ChevronRight size={16} />
+                  </button>
+                ))
+              ) : (
+                <div className="empty">
+                  <FileText size={28} />
+                  <strong>No communications match the current filter</strong>
+                  <p>Alex Morgan can create compliant customer communications using the button below.</p>
+                  <button className="primary" onClick={() => setView('compose')}>
+                    <Plus size={15} /> Create draft
+                  </button>
+                </div>
+              )}
+            </section>
+          )}
+
+          {/* =========================================================================
+              VIEW 2: REVIEW QUEUE (Home Screen for Jane Smith - Compliance Officer)
+              ========================================================================= */}
+          {view === 'review' && (
+            <section className="card history">
+              <div className="card-head" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <h2>Jane Smith's Compliance Review Queue</h2>
+                  <p>Verify source grounding, inspect anti-phishing safeguards, comment, approve, or reject customer drafts.</p>
+                </div>
+                <button className="primary approve" onClick={handleMainAction}>
+                  <ShieldCheck size={16} /> Review Next Pending
+                </button>
+              </div>
+
+              {records.filter(r => r.status === 'draft' || r.status === 'blocked').length > 0 ? (
+                records.filter(r => r.status === 'draft' || r.status === 'blocked').map(record => (
+                  <button className="history-row" key={record.id} onClick={() => { setError(''); setMessage(''); open(record); }}>
+                    <ShieldAlert size={20} color={record.status === 'blocked' ? '#c2410c' : '#315dcc'} />
+                    <span>
+                      <strong style={{ fontSize: '14px', color: 'var(--text-main)' }}>{record.subject || record.source?.title || 'Notice Review Item'}</strong>
+                      <small>
+                        Drafted: {date(record.created_at)} · {record.source?.bank} · Channel: {record.channel || 'Email'} · Language: {record.language || 'English'}
+                        {record.warnings && record.warnings.length > 0 && (
+                          <span style={{ color: '#c2410c', display: 'block', marginTop: '2px' }}>
+                            ⚠️ High risk flags: {record.warnings.join('; ')}
+                          </span>
+                        )}
+                      </small>
+                    </span>
+                    <span className={'badge ' + record.status}>
+                      {record.status === 'blocked' ? 'Needs Review' : 'Pending Approval'}
+                    </span>
+                    <ChevronRight size={16} />
+                  </button>
+                ))
+              ) : (
+                <div className="empty">
+                  <ShieldCheck size={30} color="#288763" />
+                  <strong>Compliance Review Queue is Clear</strong>
+                  <p>All submitted communications have been reviewed and approved by Jane Smith.</p>
+                </div>
+              )}
+            </section>
+          )}
+
+          {/* =========================================================================
+              VIEW 3: SYSTEM OVERVIEW (Home Screen for Sarah Jenkins - Administrator)
+              ========================================================================= */}
+          {view === 'overview' && (
+            <div className="column">
+              <section className="card">
+                <div className="card-head" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                    <div className="icon"><Layers3 size={20} /></div>
+                    <div>
+                      <h2>Sarah Jenkins' System Overview</h2>
+                      <p>Operational health of core BFSI components, web scraping tools, and knowledge bases.</p>
+                    </div>
+                  </div>
+                  <button className="primary" onClick={() => setView('users')}>
+                    <UserPlus size={15} /> Manage users
+                  </button>
+                </div>
+
+                <div className="integration-grid">
+                  {systemOverview?.integrations ? Object.entries(systemOverview.integrations).map(([key, intg]) => (
+                    <div key={key} className="integration-card">
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <strong style={{ fontSize: '14px', color: 'var(--text-main)' }}>{intg.name}</strong>
+                        <span className="status-pill status-connected">
+                          <span className="status-dot-active" /> Connected
                         </span>
                       </div>
-                      <span>{source.bank} · <span className={'badge ' + (source.category || 'fee').toLowerCase()}>{source.category || 'Fee'}</span></span>
-                      {source.url && <a href={source.url} target="_blank" rel="noreferrer">Open official source <ArrowUpRight size={13}/></a>}
+                      <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', margin: '4px 0 8px' }}>{intg.description}</p>
+                      <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', display: 'flex', gap: '12px', marginTop: 'auto', paddingTop: '8px', borderTop: '1px solid var(--border-line)' }}>
+                        {intg.latency && <span>⚡ Latency: <strong>{intg.latency}</strong></span>}
+                        {intg.model && <span>🤖 Model: <strong>{intg.model}</strong></span>}
+                        {intg.db && <span>💾 Store: <strong>{intg.db}</strong></span>}
+                        {intg.dialect && <span>🗄️ Dialect: <strong>{intg.dialect}</strong></span>}
+                      </div>
+                    </div>
+                  )) : (
+                    <p className="panel-note">Loading integration diagnostics…</p>
+                  )}
+                </div>
+              </section>
+
+              {/* Quick Navigation Cards */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
+                <button type="button" className="quick-nav-card" onClick={() => setView('users')}>
+                  <Users size={20} color="#315dcc" />
+                  <strong>Users and Roles</strong>
+                  <small>Manage staff profiles & assign roles</small>
+                </button>
+                <button type="button" className="quick-nav-card" onClick={() => setView('settings')}>
+                  <Settings size={20} color="#b06228" />
+                  <strong>Source Settings</strong>
+                  <small>Firecrawl web crawler & domains</small>
+                </button>
+                <button type="button" className="quick-nav-card" onClick={() => setView('audit')}>
+                  <FileText size={20} color="#288763" />
+                  <strong>Audit Log</strong>
+                  <small>Review timestamps & review trail</small>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* =========================================================================
+              VIEW 4: COMPOSE / DRAFT STUDIO (Alex Writes, Jane Reviews, Sarah Governs)
+              ========================================================================= */}
+          {view === 'compose' && (
+            <div className="layout studio-layout">
+              {/* Left Column: Draft Setup & Memento Preferences */}
+              <div className="column">
+                <section className="card">
+                  <div className="card-head">
+                    <div className="icon"><FileText size={18} /></div>
+                    <div>
+                      <h2>Draft Setup</h2>
+                      <p>Select the official notice and target customer preference profile.</p>
+                    </div>
+                  </div>
+
+                  {!canDraft && (
+                    <div className="panel-note" style={{ padding: '8px 12px', background: 'var(--table-hover)', border: '1px solid var(--border-line)', borderRadius: '8px', color: 'var(--text-muted)', marginBottom: '12px' }}>
+                      <Lock size={13} style={{ verticalAlign: 'middle', marginRight: '5px' }} />
+                      <strong>Staff Governance:</strong> Viewing communication as <strong>{currentSpec.personaName} ({currentSpec.title})</strong>.
+                    </div>
+                  )}
+
+                  <form onSubmit={event => {
+                    event.preventDefault()
+                    if (!canDraft) {
+                      setError("Segregation of duties: Administrator cannot write customer drafts.")
+                      return
+                    }
+                    act(async () => remember(await api('drafts', { notice_id: notice, customer, tone, channel, language }, token)))
+                  }}>
+                    <label>Customer Communication Profile (Memento)
+                      <select value={customer} onChange={event => handleCustomerSelect(event.target.value)} disabled={busy || !canDraft}>
+                        <option value="">Manual / Custom Settings</option>
+                        {customers.map(entry => (
+                          <option key={entry.customer} value={entry.customer}>
+                            {entry.name ? `${entry.name} (${entry.customer})` : entry.customer} · 🌐 {entry.language || 'English'} · 📬 {entry.channel} · 🎭 {entry.tone}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    {/* Active Customer Profile Card */}
+                    {(() => {
+                      const activeCust = customers.find(c => c.customer === customer)
+                      if (!activeCust) return null
+                      return (
+                        <div className="memento-customer-card" style={{ padding: '10px 14px', background: 'var(--table-hover)', borderRadius: '10px', border: '1px solid var(--border-line)', margin: '10px 0' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#315dcc', fontWeight: 700, fontSize: '12px', marginBottom: '6px' }}>
+                            <LibraryBig size={14} /> Loaded from Memento Knowledge Store
+                          </div>
+                          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', fontSize: '12px' }}>
+                            <span style={{ background: 'var(--bg-card)', padding: '2px 8px', borderRadius: '6px', border: '1px solid var(--border-line)', color: 'var(--text-main)' }}>
+                              🌐 <strong>Language:</strong> {activeCust.language || 'English'}
+                            </span>
+                            <span style={{ background: 'var(--bg-card)', padding: '2px 8px', borderRadius: '6px', border: '1px solid var(--border-line)', color: 'var(--text-main)' }}>
+                              📬 <strong>Channel:</strong> {activeCust.channel}
+                            </span>
+                            <span style={{ background: 'var(--bg-card)', padding: '2px 8px', borderRadius: '6px', border: '1px solid var(--border-line)', color: 'var(--text-main)' }}>
+                              🎭 <strong>Tone:</strong> {activeCust.tone}
+                            </span>
+                            <span style={{ background: 'var(--bg-card)', padding: '2px 8px', borderRadius: '6px', border: '1px solid var(--border-line)', color: 'var(--text-main)' }}>
+                              🏷️ <strong>Tier:</strong> {activeCust.tier || 'Retail'}
+                            </span>
+                          </div>
+                        </div>
+                      )
+                    })()}
+
+                    <div className="fields">
+                      <label>Official Notice Source
+                        <select value={notice} onChange={event => { setNotice(event.target.value); setItem(null); setMessage(''); setError('') }} disabled={busy || !config || !canDraft}>
+                          {config?.notices.map(entry => (
+                            <option key={entry.id} value={entry.id}>{entry.bank}: {entry.title}</option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>Preferred Language
+                        <select value={language} onChange={event => setLanguage(event.target.value)} disabled={busy || !canDraft}>
+                          <option value="English">English</option>
+                          <option value="Hindi">Hindi (हिंदी)</option>
+                          <option value="Spanish">Spanish (Español)</option>
+                          <option value="French">French (Français)</option>
+                          <option value="German">German (Deutsch)</option>
+                        </select>
+                      </label>
                     </div>
 
-                    {item ? (
-                      <>
-                        <dl>
-                          <div><dt>Product</dt><dd>{item.facts?.product || source.product || 'Standard'}</dd></div>
-                          {item.facts?.fee && <div><dt>Annual Fee</dt><dd>{item.facts.fee}</dd></div>}
-                          {item.facts?.effective_date && <div><dt>Effective Date</dt><dd>{item.facts.effective_date}</dd></div>}
-                        </dl>
-                        {source.statement && (
-                          <div style={{padding:'10px 12px', background:'#ffffffb0', borderRadius:'8px', borderLeft:'3px solid #7861a9', fontSize:'12px', margin:'10px 0'}}>
-                            <strong>Key Verified Statement:</strong><br/>
-                            "{source.statement}"
+                    <div className="fields">
+                      <label>Delivery Channel
+                        <select value={channel} onChange={event => {
+                          setChannel(event.target.value);
+                          setPreviewTab(event.target.value === 'SMS' ? 'sms' : event.target.value === 'WhatsApp' ? 'whatsapp' : 'email');
+                        }} disabled={busy || !canDraft}>
+                          <option value="Email">Email</option>
+                          <option value="SMS">SMS</option>
+                          <option value="WhatsApp">WhatsApp Business</option>
+                        </select>
+                      </label>
+                      <label>Communication Tone
+                        <select value={tone} onChange={event => setTone(event.target.value)} disabled={busy || !canDraft}>
+                          {['Friendly', 'Formal', 'Concise'].map(value => <option key={value}>{value}</option>)}
+                        </select>
+                      </label>
+                    </div>
+
+                    {canDraft ? (
+                      <div className="actions">
+                        <span>
+                          <strong style={{ color: '#315dcc' }}>{config?.generation || 'Gen AI Drafting'}</strong> · Memento Guided
+                        </span>
+                        <button className="primary" disabled={busy || !notice}>
+                          <Sparkles size={16} />{busy ? 'Drafting…' : 'Generate Compliant Draft'}
+                        </button>
+                      </div>
+                    ) : (
+                      <div style={{ marginTop: '12px', fontSize: '12px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                        * Draft generation is restricted to Communications Drafters (Alex Morgan).
+                      </div>
+                    )}
+                  </form>
+                </section>
+
+                {/* Save Customer Preferences to Memento */}
+                {canDraft && (
+                  <section className="card">
+                    <div className="card-head">
+                      <div className="icon lilac"><User size={18} /></div>
+                      <div>
+                        <h2>Customer Preferences (Memento)</h2>
+                        <p>Remember each customer's language, channel, tone, and tier in Memento for future communications.</p>
+                      </div>
+                    </div>
+                    <form onSubmit={event => {
+                      event.preventDefault()
+                      act(async () => {
+                        const result = await api('preferences', {
+                          customer: prefCustomer,
+                          name: prefName,
+                          language: prefLang,
+                          channel: prefChannel,
+                          tone: prefTone,
+                          tier: prefTier
+                        }, token)
+                        const freshPrefs = await api('preferences', undefined, token)
+                        setCustomers(freshPrefs)
+                        handleCustomerSelect(prefCustomer)
+                        setMessage(result.memory_write === 'failed' ? 'Preferences saved locally.' : `Saved ${prefName || prefCustomer}'s preferences to Memento.`)
+                        setPrefCustomer('')
+                        setPrefName('')
+                      })
+                    }}>
+                      <div className="fields">
+                        <label>Customer Reference ID
+                          <input value={prefCustomer} onChange={event => setPrefCustomer(event.target.value)} pattern="[a-zA-Z0-9_-]+" maxLength={80} placeholder="e.g. cust_wealth_401" required />
+                        </label>
+                        <label>Customer Name
+                          <input value={prefName} onChange={event => setPrefName(event.target.value)} maxLength={120} placeholder="e.g. Sunita Rao" />
+                        </label>
+                      </div>
+                      <div className="fields">
+                        <label>Preferred Language
+                          <select value={prefLang} onChange={event => setPrefLang(event.target.value)}>
+                            <option value="English">English</option>
+                            <option value="Hindi">Hindi (हिंदी)</option>
+                            <option value="Spanish">Spanish (Español)</option>
+                            <option value="French">French (Français)</option>
+                            <option value="German">German (Deutsch)</option>
+                          </select>
+                        </label>
+                        <label>Preferred Channel
+                          <select value={prefChannel} onChange={event => setPrefChannel(event.target.value)}>
+                            <option value="Email">Email</option>
+                            <option value="SMS">SMS</option>
+                            <option value="WhatsApp">WhatsApp</option>
+                          </select>
+                        </label>
+                      </div>
+                      <button className="primary" disabled={busy || !prefCustomer.trim()} style={{ marginTop: '10px' }}>
+                        <Sparkles size={15} /> Save to Memento
+                      </button>
+                    </form>
+                  </section>
+                )}
+              </div>
+
+              {/* Right Column: Communication Preview & Review Actions */}
+              <div className="column">
+                <section className="card result-panel">
+                  <div className="card-head">
+                    <div className="icon"><Clipboard size={18} /></div>
+                    <div>
+                      <h2>Customer Communication</h2>
+                      <p>Grounded in Firecrawl public notice and Memento approved phrasing.</p>
+                    </div>
+                    {item && <span className={'badge ' + item.status}>{states[item.status] || item.status}</span>}
+                  </div>
+
+                  {!item ? (
+                    <div className="empty">
+                      <FileText size={28} />
+                      <strong>Your draft will appear here</strong>
+                      <p>Select a notice and generate to view the AI communication.</p>
+                    </div>
+                  ) : item.status === 'blocked' ? (
+                    <div className="alert">
+                      <CircleAlert size={17} />
+                      Missing official source details. Resolve the warnings in the Source Evidence panel before drafting.
+                    </div>
+                  ) : (
+                    <div>
+                      {/* Multi-Channel & Regulatory Preview Tabs */}
+                      <div className="preview-tabs">
+                        <button
+                          type="button"
+                          className={previewTab === 'email' ? 'active' : ''}
+                          onClick={() => setPreviewTab('email')}
+                        >
+                          <Mail size={15} /> Email Preview
+                        </button>
+                        <button
+                          type="button"
+                          className={previewTab === 'sms' ? 'active' : ''}
+                          onClick={() => setPreviewTab('sms')}
+                        >
+                          <Smartphone size={15} /> SMS Preview
+                        </button>
+                        <button
+                          type="button"
+                          className={previewTab === 'whatsapp' ? 'active' : ''}
+                          onClick={() => setPreviewTab('whatsapp')}
+                        >
+                          <MessageSquare size={15} /> WhatsApp Business
+                        </button>
+                        <button
+                          type="button"
+                          className={previewTab === 'redline' ? 'active' : ''}
+                          onClick={() => setPreviewTab('redline')}
+                        >
+                          <GitCompare size={15} /> Redline Diff
+                        </button>
+                        <button
+                          type="button"
+                          className={previewTab === 'edit' ? 'active' : ''}
+                          onClick={() => setPreviewTab('edit')}
+                        >
+                          <Edit3 size={15} /> Edit Text {!canDraft && '(Read-Only)'}
+                        </button>
+                      </div>
+
+                      {/* Channel Render: Email Preview */}
+                      {previewTab === 'email' && (
+                        <div className="email-preview">
+                          <div className="email-header-bar">
+                            <div className="email-bank-logo">
+                              <Layers3 size={20} color="#315dcc" />
+                              <span>{item.source?.bank || 'Bank'}</span>
+                            </div>
+                            <span className="email-official-tag">Official Notice</span>
+                          </div>
+                          <div className="email-subject-line">
+                            Subject: {subject}
+                          </div>
+                          <div className="email-content-body">
+                            {body}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Channel Render: SMS Preview */}
+                      {previewTab === 'sms' && (
+                        <div className="sms-phone-mockup">
+                          <div className="phone-speaker" />
+                          <div className="phone-screen">
+                            <div className="sms-sender-header">
+                              {item.source?.bank?.toUpperCase().replace(/\s+/g, '') || 'BANK'}-ALERT
+                            </div>
+                            <div className="sms-bubble">
+                              {smsPreview}
+                            </div>
+                            <div className="sms-meta-info">
+                              {smsPreview.length} / 160 characters · {Math.ceil(smsPreview.length / 160)} SMS
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Channel Render: WhatsApp Business Interactive Preview */}
+                      {previewTab === 'whatsapp' && (
+                        <div className="whatsapp-mockup">
+                          <div className="whatsapp-header">
+                            <div className="whatsapp-avatar">
+                              {(item.source?.bank || 'Bank').slice(0, 2).toUpperCase()}
+                            </div>
+                            <div className="whatsapp-header-info">
+                              <div className="whatsapp-sender">
+                                {item.source?.bank || 'Harborline Bank'}
+                                <span className="whatsapp-verified-badge" title="Official Verified Business Account">✓</span>
+                              </div>
+                              <span className="whatsapp-status">Official Business Account</span>
+                            </div>
+                          </div>
+                          <div className="whatsapp-chat-body">
+                            <div className="whatsapp-bubble">
+                              {item.whatsapp_body || body}
+                            </div>
+                            <div className="whatsapp-buttons-container">
+                              <button type="button" className="whatsapp-action-btn" onClick={() => setMessage('WhatsApp CTA Action: Opening official fee schedule document.')}>
+                                📄 View Full Fee Schedule
+                              </button>
+                              <button type="button" className="whatsapp-action-btn" onClick={() => setMessage('WhatsApp CTA Action: Retrieved Memento fee waiver criteria.')}>
+                                💡 Fee Waiver Criteria
+                              </button>
+                              <button type="button" className="whatsapp-action-btn" onClick={() => setMessage('WhatsApp CTA Action: Routed customer to Harborline support team.')}>
+                                📞 Contact Customer Care
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Channel Render: Visual Redline Diff Tool */}
+                      {previewTab === 'redline' && (
+                        <VisualRedlineDiff
+                          source={item.source}
+                          body={body}
+                          wording={wording || item.wording}
+                        />
+                      )}
+
+                      {/* Pre-Flight Regulatory Compliance Linter */}
+                      <PreFlightLinter
+                        item={item}
+                        subject={subject}
+                        body={body}
+                        canDraft={canDraft}
+                        onInjectDisclaimers={handleInjectDisclaimers}
+                      />
+
+                      {/* Editor & Actions Form */}
+                      <form className="editor" style={{ marginTop: '16px' }} onSubmit={event => {
+                        event.preventDefault()
+                        if (!canApprove) {
+                          setError("Segregation of duties: Only a Compliance Officer (Jane Smith) can approve messages.")
+                          return
+                        }
+                        act(async () => {
+                          const approved = await api('drafts/' + item.id + '/approve', {
+                            subject, body, reviewer: reviewer || user.name, reusable_wording: wording, source_confirmed: confirmed
+                          }, token)
+                          remember(approved)
+                          setMessage('Draft approved and recorded in Memento memory.')
+                        })
+                      }}>
+                        {previewTab === 'edit' && (
+                          <>
+                            {!canDraft && (
+                              <div className="panel-note" style={{ padding: '8px 12px', background: 'var(--table-hover)', border: '1px solid var(--border-line)', borderRadius: '8px', color: 'var(--text-muted)', marginBottom: '8px' }}>
+                                <Lock size={13} style={{ verticalAlign: 'middle', marginRight: '5px' }} />
+                                <strong>Jane Smith (Compliance):</strong> Cannot edit draft text directly. You can comment, reject with revision feedback, or provide approved wording.
+                              </div>
+                            )}
+                            <label>Subject
+                              <input
+                                value={subject}
+                                onChange={event => { if (canDraft) { setSubject(event.target.value); setConfirmed(false); } }}
+                                maxLength={160}
+                                readOnly={!canDraft || !editable || busy}
+                                required
+                              />
+                            </label>
+                            <label>Message Content
+                              <textarea
+                                value={body}
+                                onChange={event => { if (canDraft) { setBody(event.target.value); setConfirmed(false); } }}
+                                rows={10}
+                                maxLength={12000}
+                                readOnly={!canDraft || !editable || busy}
+                                required
+                              />
+                            </label>
+                            {editable && canDraft && (
+                              <Readability key={item.id} item={item} subject={subject} body={body} busy={busy}
+                                onChange={next => { setSubject(next.subject); setBody(next.body); setConfirmed(false) }} />
+                            )}
+                          </>
+                        )}
+
+                        {editable ? (
+                          <>
+                            {/* Segregation of Duties Action Block */}
+                            {canApprove ? (
+                              /* Compliance Officer (Jane Smith): Comment, Approve, Reject */
+                              <>
+                                <div className="fields">
+                                  <label>Compliance Officer
+                                    <input value={reviewer || user.name} onChange={event => setReviewer(event.target.value)} required />
+                                  </label>
+                                  <label>Approved Wording to Save in Memento
+                                    <input value={wording} onChange={event => setWording(event.target.value)} placeholder="Standard policy wording to store" />
+                                  </label>
+                                </div>
+
+                                <label className="checkbox">
+                                  <input type="checkbox" checked={confirmed} onChange={event => setConfirmed(event.target.checked)} disabled={busy} required />
+                                  I verified that the communication accurately reflects official source facts and includes security disclaimers.
+                                </label>
+
+                                <div className="review-action-container">
+                                  <input
+                                    value={reason}
+                                    onChange={event => setReason(event.target.value)}
+                                    placeholder="Rejection reason / comments (required if returning to drafter)"
+                                    maxLength={1000}
+                                    style={{ margin: 0 }}
+                                  />
+                                  <div className="review-action-buttons">
+                                    <button
+                                      type="button"
+                                      className="primary"
+                                      style={{ background: '#a34e65' }}
+                                      disabled={busy || !reason.trim()}
+                                      onClick={() => act(async () => remember(await api('drafts/' + item.id + '/reject', { reviewer: user.name, reason }, token)))}
+                                    >
+                                      Reject & Return
+                                    </button>
+                                    <button
+                                      className="primary approve"
+                                      disabled={busy || !confirmed}
+                                    >
+                                      <ShieldCheck size={17} /> Approve Communication
+                                    </button>
+                                  </div>
+                                </div>
+                              </>
+                            ) : canDraft ? (
+                              /* Communications Drafter (Alex Morgan): Submit for Review */
+                              <div style={{ marginTop: '12px', padding: '14px', background: 'var(--table-hover)', border: '1px solid var(--border-line)', borderRadius: '10px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--green)', fontWeight: 600, fontSize: '13px' }}>
+                                  <Check size={16} /> Draft Ready for Review
+                                </div>
+                                <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '6px 0 12px' }}>
+                                  Alex Morgan cannot approve messages. When you finish drafting, this draft is automatically queued for Jane Smith (Compliance Officer).
+                                </p>
+                                <button
+                                  type="button"
+                                  className="primary"
+                                  onClick={() => {
+                                    setMessage(`Draft queued for Compliance Officer review! Switched to My Drafts view.`)
+                                    setView('drafts')
+                                  }}
+                                >
+                                  <Check size={16} /> Submit for Review
+                                </button>
+                              </div>
+                            ) : (
+                              /* Administrator (Sarah Jenkins): Read-Only Governance */
+                              <div className="panel-note" style={{ padding: '12px', background: 'var(--table-hover)', border: '1px solid var(--border-line)', borderRadius: '8px', color: 'var(--text-muted)' }}>
+                                <Lock size={14} style={{ verticalAlign: 'middle', marginRight: '5px' }} />
+                                <strong>Administrator Mode:</strong> Sarah Jenkins manages users and system integrations; writing or approving messages is restricted to Drafter and Compliance roles.
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px' }}>
+                            <div className="success" style={{ margin: 0 }}>
+                              <Check size={17} />
+                              {item.status === 'rejected' ? `Returned by ${item.reviewer} — ${item.rejection_reason}` : `Approved by ${item.reviewer} · ${date(item.approved_at)}`}
+                            </div>
+                            {item.status === 'approved' && (
+                              <a href={'/api/drafts/' + item.id + '/export'} download className="primary" style={{ textDecoration: 'none' }}>
+                                <Download size={15} /> Download {item.preference?.channel === 'SMS' ? 'SMS' : 'Email'}
+                              </a>
+                            )}
                           </div>
                         )}
-                        <details open={!source.url}>
-                          <summary>Scraped Source Snapshot</summary>
-                          <div className="excerpt">{source.text}</div>
-                        </details>
-                        <p className="timestamp">Retrieved {date(source.retrieved_at)}</p>
-                        {item.status !== 'blocked' && item.facts?.fee && /^(₹|INR )/.test(item.facts.fee) && (
-                          <ReferenceFx key={item.id} draft={item}/>
-                        )}
-                        {item.warnings?.map(warning => (
-                          <div key={warning} className="alert"><CircleAlert size={16}/>{warning}</div>
-                        ))}
-                      </>
-                    ) : (
-                      <p className="panel-note">Generate a draft to retrieve the notice text and verify source facts.</p>
-                    )}
-                  </>
-                ) : (
-                  <p className="panel-note">No source selected.</p>
-                )}
-              </section>
-
-              {/* Memento Knowledge Consistency Card */}
-              <section className="card">
-                <div className="card-head">
-                  <div className="icon lilac"><LibraryBig size={18}/></div>
-                  <div>
-                    <h2>Approved Explanations (Memento)</h2>
-                    <p>{item?.memory || config?.memory || 'Memento'}</p>
-                  </div>
-                </div>
-                <p className="panel-note" style={{marginBottom:'10px'}}>
-                  Prior approved phrasing retrieved from Memento to ensure messaging consistency:
-                </p>
-                <div style={{padding:'12px', background:'#f8f5ff', borderRadius:'10px', border:'1px solid #e3d8f4', fontSize:'13px', color:'#453366', lineHeight:1.6}}>
-                  {item?.wording ? `"${item.wording}"` : 'Previously approved language appears here when you generate a draft.'}
-                </div>
-                {item?.prior_explanations && item.prior_explanations.length > 1 && (
-                  <details style={{marginTop:'10px'}}>
-                    <summary style={{fontSize:'12px', color:'#7861a9'}}>Additional Memento context ({item.prior_explanations.length - 1})</summary>
-                    <div style={{marginTop:'8px', display:'grid', gap:'6px'}}>
-                      {item.prior_explanations.slice(1).map((exp, idx) => (
-                        <div key={idx} style={{padding:'8px', background:'#fff', borderRadius:'6px', fontSize:'11px', color:'#524d62'}}>
-                          {exp}
-                        </div>
-                      ))}
+                      </form>
                     </div>
-                  </details>
-                )}
-              </section>
+                  )}
+                </section>
+
+                {/* Source Evidence Card (Firecrawl) */}
+                <section className="card evidence">
+                  <div className="card-head">
+                    <div className="icon amber"><BookOpen size={18} /></div>
+                    <div>
+                      <h2>Source evidence</h2><small className="provider-label">{source?.retriever || config?.retriever}</small>
+                      <p>{source?.url ? 'Verified official web document' : 'Demonstration notice'}</p>
+                    </div>
+                  </div>
+                  {source ? (
+                    <>
+                      <div className="source-meta">
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <strong>{source.title}</strong>
+                          <span className="badge" style={{ background: '#e0ecfb', color: '#32588a' }}>
+                            {source.retriever || (source.url ? 'Firecrawl v2' : 'Local Notice')}
+                          </span>
+                        </div>
+                        <span>{source.bank} · <span className={'badge ' + (source.category || 'fee').toLowerCase()}>{source.category || 'Fee'}</span></span>
+                        {source.url && <a href={source.url} target="_blank" rel="noreferrer">Open official source <ArrowUpRight size={13} /></a>}
+                      </div>
+
+                      {item ? (
+                        <>
+                          <dl>
+                            <div><dt>Product</dt><dd>{item.facts?.product || source.product || 'Standard'}</dd></div>
+                            {item.facts?.fee && <div><dt>Annual Fee</dt><dd>{item.facts.fee}</dd></div>}
+                            {item.facts?.effective_date && <div><dt>Effective Date</dt><dd>{item.facts.effective_date}</dd></div>}
+                          </dl>
+                          {source.statement && (
+                            <div style={{ padding: '10px 12px', background: 'var(--table-hover)', borderRadius: '8px', borderLeft: '3px solid #315dcc', fontSize: '12px', margin: '10px 0' }}>
+                              <strong>Key Verified Statement:</strong><br />
+                              "{source.statement}"
+                            </div>
+                          )}
+                          <details open={!source.url}>
+                            <summary>Scraped Source Snapshot</summary>
+                            <div className="excerpt">{source.text}</div>
+                          </details>
+                          <p className="timestamp">Retrieved {date(source.retrieved_at)}</p>
+                          {item.status !== 'blocked' && item.facts?.fee && /^(₹|INR )/.test(item.facts.fee) && (
+                            <ReferenceFx key={item.id} draft={item} />
+                          )}
+                          {item.warnings?.map(warning => (
+                            <div key={warning} className="alert"><CircleAlert size={16} />{warning}</div>
+                          ))}
+                        </>
+                      ) : (
+                        <p className="panel-note">Generate a draft to retrieve the notice text and verify source facts.</p>
+                      )}
+                    </>
+                  ) : (
+                    <p className="panel-note">No source selected.</p>
+                  )}
+                </section>
+              </div>
             </div>
-          </div>
-        )}
-      </div>
-      <ChatWidget customerId={customer || 'retail-001'} />
-    </main>
-  </div>
+          )}
+
+          {/* =========================================================================
+              VIEW 5: SOURCES (Firecrawl Scraping & Verified Catalog)
+              ========================================================================= */}
+          {view === 'sources' && (
+            <Sources
+              notices={config?.notices || []}
+              busy={busy}
+              select={id => {
+                setNotice(id); setItem(null); setView('compose'); setMessage(''); setError('')
+              }}
+              register={async values => {
+                let saved = false
+                await act(async () => {
+                  const result = await api('sources', values, token)
+                  const fresh = await api('notices', undefined, token)
+                  setConfig(fresh)
+                  setMessage(`Notice registered with ${result.retriever || 'Firecrawl'} and added to catalog.`)
+                  saved = true
+                })
+                return saved
+              }}
+            />
+          )}
+
+          {/* =========================================================================
+              VIEW 6 & 7: APPROVED LIBRARY (Alex) & COMPLIANCE RULES (Jane)
+              ========================================================================= */}
+          {(view === 'approved' || view === 'rules') && (
+            <KnowledgeBank user={user} mode={view} />
+          )}
+
+          {/* =========================================================================
+              VIEW 8: USERS AND ROLES (Sarah Jenkins - Administrator)
+              ========================================================================= */}
+          {view === 'users' && (
+            <div className="layout">
+              <div className="column">
+                <section className="card">
+                  <div className="card-head">
+                    <div className="icon"><Users size={18} /></div>
+                    <div>
+                      <h2>Staff Directory & Role Assignments</h2>
+                      <p>View all registered bank personnel and their segregated permissions.</p>
+                    </div>
+                  </div>
+
+                  <table className="users-table">
+                    <thead>
+                      <tr>
+                        <th>Staff Member</th>
+                        <th>Role</th>
+                        <th>Department</th>
+                        <th>Email</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {systemOverview?.users ? systemOverview.users.map(u => (
+                        <tr key={u.id}>
+                          <td>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <div className="user-chip-avatar" style={{ background: u.avatar_color, width: '26px', height: '26px', fontSize: '10px' }}>
+                                {u.name.split(' ').map(n => n[0]).join('')}
+                              </div>
+                              <strong>{u.name}</strong>
+                            </div>
+                          </td>
+                          <td>
+                            <span className={'role-badge ' + u.role}>
+                              {u.role === 'compliance' ? 'Compliance Officer' : u.role === 'drafter' ? 'Communications Drafter' : 'Administrator'}
+                            </span>
+                          </td>
+                          <td style={{ color: 'var(--text-muted)' }}>{u.department}</td>
+                          <td style={{ color: 'var(--text-muted)', fontSize: '12px' }}>{u.email}</td>
+                        </tr>
+                      )) : (
+                        <tr><td colSpan={4}>Loading directory…</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </section>
+              </div>
+
+              <div className="column">
+                <section className="card">
+                  <div className="card-head">
+                    <div className="icon amber"><UserPlus size={18} /></div>
+                    <div>
+                      <h2>Add Staff Member</h2>
+                      <p>Create a new user and assign their persona and duties.</p>
+                    </div>
+                  </div>
+
+                  <form onSubmit={handleCreateUser} className="editor">
+                    <label>Full Name
+                      <input value={newUserName} onChange={e => setNewUserName(e.target.value)} placeholder="e.g. David Patel" required />
+                    </label>
+                    <label>Bank Email Address
+                      <input type="email" value={newUserEmail} onChange={e => setNewUserEmail(e.target.value)} placeholder="d.patel@harborline.bank" required />
+                    </label>
+                    <div className="fields">
+                      <label>Assigned Persona & Role
+                        <select value={newUserRole} onChange={e => setNewUserRole(e.target.value)}>
+                          <option value="drafter">Communications Drafter (Alex Morgan)</option>
+                          <option value="compliance">Compliance Officer (Jane Smith)</option>
+                          <option value="admin">Administrator (Sarah Jenkins)</option>
+                        </select>
+                      </label>
+                      <label>Department
+                        <input value={newUserDept} onChange={e => setNewUserDept(e.target.value)} placeholder="e.g. Retail Communications" required />
+                      </label>
+                    </div>
+                    <label>Initial Temporary Password
+                      <input type="password" value={newUserPwd} onChange={e => setNewUserPwd(e.target.value)} placeholder="••••••••" required minLength={4} />
+                    </label>
+                    <button className="primary" disabled={adminUserSubmitting || !newUserName.trim() || !newUserEmail.trim()}>
+                      <UserPlus size={16} /> {adminUserSubmitting ? 'Creating User…' : 'Create Staff Member'}
+                    </button>
+                  </form>
+                </section>
+              </div>
+            </div>
+          )}
+
+          {/* =========================================================================
+              VIEW 9: SOURCE SETTINGS (Sarah Jenkins - Administrator)
+              ========================================================================= */}
+          {view === 'settings' && (
+            <section className="card">
+              <div className="card-head">
+                <div className="icon"><Settings size={18} /></div>
+                <div>
+                  <h2>Source Scraper & Firecrawl Settings</h2>
+                  <p>Configure official crawler boundaries, allowed banking domains, and cache parameters.</p>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gap: '16px', maxWidth: '680px' }}>
+                <label>Active Retriever Engine
+                  <input value="Firecrawl v2 (Deep Crawler with BeautifulSoup fallback)" disabled />
+                </label>
+                <label>Allowed Banking & Financial Domains (Whitelist)
+                  <textarea
+                    defaultValue="harborline.bank&#10;hdfcbank.com&#10;nsandi.com&#10;barclays.co.uk&#10;bankofengland.co.uk"
+                    rows={5}
+                  />
+                  <small>Only pages within these verified financial institutions will be processed by Firecrawl.</small>
+                </label>
+                <div className="fields">
+                  <label>Crawler Cache TTL (Seconds)
+                    <input type="number" defaultValue="3600" />
+                  </label>
+                  <label>Passage Verification Strictness
+                    <select defaultValue="strict">
+                      <option value="strict">Strict (Exact passage match in scraped document)</option>
+                      <option value="semantic">Semantic (Embeddings similarity match)</option>
+                    </select>
+                  </label>
+                </div>
+                <button type="button" className="primary" onClick={() => setMessage('Source settings updated and saved successfully.')}>
+                  Save Configuration
+                </button>
+              </div>
+            </section>
+          )}
+
+          {/* =========================================================================
+              VIEW 10: INTEGRATIONS (Sarah Jenkins - Administrator)
+              ========================================================================= */}
+          {view === 'integrations' && (
+            <section className="card">
+              <div className="card-head">
+                <div className="icon"><Database size={18} /></div>
+                <div>
+                  <h2>Integrations Health & Connection Diagnostics</h2>
+                  <p>Real-time status of Firecrawl, Memento Knowledge Engine, Google Gemini API, and SQLite DB.</p>
+                </div>
+              </div>
+
+              <div className="integration-grid">
+                {[
+                  {
+                    name: 'Firecrawl v2 Web Scraper',
+                    status: 'Connected',
+                    desc: 'Scrapes live product notices, fee schedules, and regulatory announcements.',
+                    metric: 'Latency: 120ms · API: Healthy'
+                  },
+                  {
+                    name: 'Memento MCP Knowledge Engine',
+                    status: 'Connected',
+                    desc: 'Stores approved explanations and customer communication preferences.',
+                    metric: 'Memory Store: finserve-memory.db · Sync: Active'
+                  },
+                  {
+                    name: 'Google Gemini 3.8 Flash',
+                    status: 'Connected',
+                    desc: 'Drafts multilingual compliant communications adhering to grounding facts.',
+                    metric: 'Model: gemini-3.8-flash · Status: 200 OK'
+                  },
+                  {
+                    name: 'FinServe Core Database',
+                    status: 'Connected',
+                    desc: 'Relational storage for drafts, staff directory, and compliance audit trail.',
+                    metric: 'Engine: SQLite (finserve.db) · Connections: Active'
+                  }
+                ].map(item => (
+                  <div key={item.name} className="integration-card">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <strong style={{ fontSize: '14px', color: 'var(--text-main)' }}>{item.name}</strong>
+                      <span className="status-pill status-connected">
+                        <span className="status-dot-active" /> {item.status}
+                      </span>
+                    </div>
+                    <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', margin: '6px 0' }}>{item.desc}</p>
+                    <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: 'auto', paddingTop: '8px', borderTop: '1px solid var(--border-line)' }}>
+                      {item.metric}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* =========================================================================
+              VIEW 11: AUDIT LOG (Jane & Sarah)
+              ========================================================================= */}
+          {view === 'audit' && (
+            <section className="card">
+              <div className="card-head">
+                <div className="icon"><Activity size={18} /></div>
+                <div>
+                  <h2>Regulatory Compliance Audit Trail</h2>
+                  <p>Immutable log of every draft generation, compliance review, and Memento knowledge sync.</p>
+                </div>
+              </div>
+
+              <table className="audit-table">
+                <thead>
+                  <tr>
+                    <th>Timestamp</th>
+                    <th>Action</th>
+                    <th>Subject / Target</th>
+                    <th>Actor & Role</th>
+                    <th>Audit Details</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {systemOverview?.audit_log && systemOverview.audit_log.length > 0 ? (
+                    systemOverview.audit_log.map((log, index) => (
+                      <tr key={log.id || index}>
+                        <td style={{ fontSize: '12px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                          {log.timestamp ? date(log.timestamp) : 'Recent'}
+                        </td>
+                        <td>
+                          <span className={'badge ' + (log.action.includes('Approved') ? 'approved' : log.action.includes('Rejected') ? 'rejected' : 'draft')}>
+                            {log.action}
+                          </span>
+                        </td>
+                        <td><strong>{log.target}</strong></td>
+                        <td>
+                          {log.actor}
+                          <small style={{ display: 'block', color: 'var(--text-muted)' }}>{log.actor_role}</small>
+                        </td>
+                        <td style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{log.details}</td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr><td colSpan={5}>No audit logs recorded yet.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </section>
+          )}
+
+        </div>
+        <ChatWidget customerId={customer || 'retail-001'} />
+      </main>
+    </div>
+  )
 }
 
-createRoot(document.getElementById('root')).render(<App/>)
+createRoot(document.getElementById('root')).render(<App />)

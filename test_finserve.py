@@ -1,5 +1,6 @@
 import asyncio
 import sys
+from uuid import uuid4
 sys.stdout.reconfigure(line_buffering=True)
 from backend.main import (
     list_notices,
@@ -11,6 +12,11 @@ from backend.main import (
     export_draft,
     login,
     list_demo_users,
+    system_overview,
+    create_staff_user,
+    CreateUserRequest,
+    lint_communication,
+    LintRequest,
     MemoryInput,
     Preference,
     DraftRequest,
@@ -53,6 +59,8 @@ async def run_all_tests():
     print("\n=== 4. Testing save_preference() (Customer Profiles in Memento) ===")
     pref = Preference(
         customer="cust_test_001",
+        name="Test Customer",
+        language="English",
         tone="Formal",
         channel="Email",
         tier="Wealth"
@@ -60,6 +68,7 @@ async def run_all_tests():
     saved_pref = await save_preference(pref)
     print("Saved preference:", saved_pref)
     assert saved_pref["customer"] == "cust_test_001"
+    assert saved_pref["language"] == "English"
 
     print("\n=== 5. Testing create_draft() for Fee Revision (Email) ===")
     annual_fee_notice = next(n for n in notices_data["notices"] if n["id"] == "annual-fee")
@@ -72,26 +81,35 @@ async def run_all_tests():
     print("Draft ID:", draft["id"])
     print("Draft Status:", draft["status"])
     print("Subject:", draft["subject"])
+    print("Language:", draft.get("language"))
     print("Retrieved Memento explanation:", draft.get("prior_explanations", [""])[0][:80] + "...")
     assert "From 1 December 2026, the annual fee for the Platinum Debit Card will be ₹350." in draft["body"]
     assert "Security Advisory" in draft["body"]
     assert draft["status"] == "draft"
 
-    print("\n=== 6. Testing create_draft() for SMS Channel ===")
-    pref_sms = Preference(
-        customer="cust_test_sms",
-        tone="Concise",
-        channel="SMS",
-        tier="Retail"
-    )
-    await save_preference(pref_sms)
-    draft_sms = await create_draft(DraftRequest(
+    print("\n=== 6. Testing Memento Customer Preference: Hindi + SMS & Spanish + Email ===")
+    # 6a: Test seeded customer with Hindi + SMS preferences in Memento
+    draft_hindi = await create_draft(DraftRequest(
         notice_id=annual_fee_notice["id"],
-        customer="cust_test_sms",
-        tone="Concise"
+        customer="cust-rajesh-kumar"
     ))
-    print("SMS body:", draft_sms["body"])
-    assert "Platinum Debit Card" in draft_sms["body"]
+    print("Hindi Draft Language:", draft_hindi.get("language"))
+    print("Hindi Draft Channel:", draft_hindi.get("channel"))
+    print("Hindi SMS text:", draft_hindi.get("sms_body"))
+    assert draft_hindi["language"] == "Hindi"
+    assert draft_hindi["channel"] == "SMS"
+    assert "शुल्क" in draft_hindi["sms_body"] or "कार्ड" in draft_hindi["sms_body"] or "अलर्ट" in draft_hindi["sms_body"]
+
+    # 6b: Test seeded customer with Spanish + Email preferences in Memento
+    draft_spanish = await create_draft(DraftRequest(
+        notice_id=annual_fee_notice["id"],
+        customer="cust-elena-rodriguez"
+    ))
+    print("Spanish Draft Language:", draft_spanish.get("language"))
+    print("Spanish Draft Subject:", draft_spanish.get("subject"))
+    assert draft_spanish["language"] == "Spanish"
+    assert draft_spanish["channel"] == "Email"
+    assert "tarifa" in draft_spanish["subject"].lower() or "aviso" in draft_spanish["subject"].lower() or "débito" in draft_spanish["subject"].lower()
 
     print("\n=== 7. Testing approve() with Reusable Wording (Saves to Memento) ===")
     profile = next(u for u in list_demo_users() if u["role"] == "compliance")
@@ -182,7 +200,74 @@ async def run_all_tests():
     print("Chat 3 Anti-Phishing Advisory triggered:", "Security" in chat_res_3["reply"] or "NEVER" in chat_res_3["reply"])
     assert "pin" in chat_res_3["reply"].lower() or "otp" in chat_res_3["reply"].lower()
 
-    print("\n>>> ALL TESTS PASSED SUCCESSFULLY! ALL 11 TEST PHASES VERIFIED! <<<")
+    print("\n=== 12. Testing system_overview() & Admin User Management ===")
+    admin_profile = next(u for u in demo_users if u["role"] == "admin")
+    admin_scope = {"type": "http", "headers": [(b"authorization", ("Bearer " + admin_profile["token"]).encode())]}
+    admin_req = Request(admin_scope)
+
+    overview = system_overview(admin_req)
+    print("Overview metrics:", overview["metrics"])
+    print("Active users in overview:", overview["metrics"]["active_users"])
+    assert "drafts" in overview["metrics"]
+    assert "returned" in overview["metrics"]
+    assert "approved" in overview["metrics"]
+    assert "active_users" in overview["metrics"]
+    assert "integrations" in overview
+    assert "firecrawl" in overview["integrations"]
+    assert "memento" in overview["integrations"]
+
+    # Test create_staff_user() by Admin
+    new_user_req = CreateUserRequest(
+        name="David Patel",
+        email=f"david.patel.{uuid4().hex[:4]}@harborline.bank",
+        role="drafter",
+        department="Retail Cards",
+        password=uuid4().hex
+    )
+    created_user = create_staff_user(new_user_req, admin_req)
+    print("Created staff user:", created_user["name"], "Role:", created_user["role"])
+    assert created_user["name"] == "David Patel"
+    assert created_user["role"] == "drafter"
+
+    print("\n=== 13. Testing Pre-Flight Regulatory Linter & WhatsApp Business Format ===")
+    # 13a: Linting compliant draft (from phase 5)
+    lint_res_compliant = lint_communication(LintRequest(
+        subject=draft["subject"],
+        body=draft["body"],
+        facts=draft["facts"],
+        bank="Harborline Bank",
+        language="English"
+    ))
+    print("Compliant Draft Score:", lint_res_compliant["score"], "Status:", lint_res_compliant["status"])
+    print("Passed checks count:", sum(1 for c in lint_res_compliant["checks"] if c["passed"]))
+    assert lint_res_compliant["score"] >= 80
+    assert lint_res_compliant["status"] == "compliant"
+
+    # 13b: Linting incomplete text (missing anti-phishing advisory and fee amount)
+    lint_res_incomplete = lint_communication(LintRequest(
+        subject="Important Account Notice",
+        body="Dear customer, your account settings have been modified. Sincerely, Customer Support",
+        facts={"fee": "₹350", "effective_date": "1 December 2026"},
+        bank="Harborline Bank"
+    ))
+    print("Incomplete Text Score:", lint_res_incomplete["score"], "Status:", lint_res_incomplete["status"])
+    assert lint_res_incomplete["score"] < 80
+    assert lint_res_incomplete["status"] == "needs_review"
+
+    # 13c: WhatsApp Business interactive format
+    draft_whatsapp = await create_draft(DraftRequest(
+        notice_id=annual_fee_notice["id"],
+        customer="cust-rajesh-kumar",
+        channel="WhatsApp"
+    ))
+    print("WhatsApp Body exists:", "whatsapp_body" in draft_whatsapp)
+    print("WhatsApp Buttons count:", len(draft_whatsapp.get("whatsapp_buttons", [])))
+    print("WhatsApp snippet:", draft_whatsapp.get("whatsapp_body", "")[:100].replace("\n", " "))
+    assert "whatsapp_body" in draft_whatsapp
+    assert len(draft_whatsapp.get("whatsapp_buttons", [])) == 3
+    assert "HARBORLINE BANK" in draft_whatsapp["whatsapp_body"]
+
+    print("\n>>> ALL TESTS PASSED SUCCESSFULLY! ALL 13 TEST PHASES VERIFIED! <<<")
 
 if __name__ == "__main__":
     asyncio.run(run_all_tests())

@@ -1,27 +1,33 @@
 import React, {useState, useEffect} from 'react'
 import {
-  Layers3, ShieldCheck, Lock, UserCheck, ArrowRight,
-  CircleAlert, Sparkles, KeyRound, Building2
+  Layers3, ShieldCheck, ArrowRight,
+  CircleAlert, KeyRound, Building2
 } from 'lucide-react'
+import workspacePicture from './assets/sign-in-workspace.jpg'
 
-export default function Login({onLogin}) {
+export default function Login({onLogin, children}) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [method, setMethod] = useState('credentials')
   const [demoUsers, setDemoUsers] = useState([])
 
   useEffect(() => {
     fetch('/api/auth/users')
       .then(res => res.json())
-      .then(data => setDemoUsers(data))
+      .then(data => {
+        if (Array.isArray(data)) {
+          setDemoUsers(data)
+        }
+      })
       .catch(() => {})
   }, [])
 
   async function handleLogin(e) {
     if (e) e.preventDefault()
     if (!email.trim() || !password.trim()) {
-      setError('Please enter both staff email and password.')
+      setError('Please enter both staff email address and password.')
       return
     }
     setBusy(true)
@@ -78,16 +84,12 @@ export default function Login({onLogin}) {
               <small className="login-subtitle">BFSI CUSTOMER COMMUNICATION ASSISTANT</small>
             </div>
           </div>
-          <div className="login-trust-badges">
-            <span className="trust-pill"><ShieldCheck size={13}/> BFSI Compliant</span>
-            <span className="trust-pill"><Lock size={13}/> Role-Based Access</span>
-          </div>
         </div>
 
         <div className="login-body">
           <div className="login-instructions">
-            <h2>Staff Portal Login</h2>
-            <p>Sign in with your verified financial institution credentials to manage customer notices, Firecrawl ingestion, and Memento consistency.</p>
+            <h1>Welcome back<span>.</span></h1>
+            <p>Sign in to prepare and review customer communications.</p>
           </div>
 
           {error && (
@@ -96,11 +98,30 @@ export default function Login({onLogin}) {
             </div>
           )}
 
-          {/* Quick 1-Click Role Switcher */}
-          {demoUsers.length > 0 && (
+          {/* Switcher between Staff sign-in and Evaluation profiles */}
+          <div className="method-switch" aria-label="Sign-in method">
+            {[
+              ['credentials', 'Staff sign-in'],
+              ['profiles', 'Evaluation profiles']
+            ].map(([id, label]) => (
+              <button
+                type="button"
+                key={id}
+                aria-pressed={method === id}
+                disabled={busy}
+                onClick={() => { setMethod(id); setError(''); }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {/* Evaluation Profiles: 1-click immediate quick-login without fill credentials */}
+          {method === 'profiles' && (
             <div className="demo-users-section">
-              <span className="demo-section-label">SELECT STAFF ROLE FOR IMMEDIATE EVALUATION:</span>
+              <span className="demo-section-label">CHOOSE A STAFF PROFILE FOR IMMEDIATE EVALUATION:</span>
               <div className="demo-users-grid">
+                {demoUsers.length === 0 && <p>No evaluation profiles are configured.</p>}
                 {demoUsers.map(u => (
                   <button
                     type="button"
@@ -108,6 +129,7 @@ export default function Login({onLogin}) {
                     className="demo-user-btn"
                     onClick={() => quickLogin(u)}
                     disabled={busy}
+                    title={`Click to sign in immediately as ${u.name}`}
                   >
                     <div className="demo-avatar" style={{background: u.avatar_color}}>
                       {u.name.split(' ').map(n => n[0]).join('')}
@@ -126,40 +148,41 @@ export default function Login({onLogin}) {
             </div>
           )}
 
-          <div className="login-divider">
-            <span>OR ENTER CUSTOM CREDENTIALS</span>
-          </div>
+          {/* Staff Sign-in Manual Form */}
+          {method === 'credentials' && (
+            <form onSubmit={handleLogin} className="login-form">
+              <label>
+                Staff Email Address
+                <input
+                  autoComplete="username"
+                  type="email"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  placeholder="name@harborline.bank"
+                  required
+                  disabled={busy}
+                />
+              </label>
 
-          {/* Manual Login Form */}
-          <form onSubmit={handleLogin} className="login-form">
-            <label>
-              Staff Email Address
-              <input
-                type="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                placeholder="name@harborline.bank"
-                required
-                disabled={busy}
-              />
-            </label>
+              <label>
+                Password
+                <input
+                  autoComplete="current-password"
+                  type="password"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  required
+                  disabled={busy}
+                />
+              </label>
 
-            <label>
-              Password
-              <input
-                type="password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                placeholder="••••••••"
-                required
-                disabled={busy}
-              />
-            </label>
+              <button type="submit" className="primary login-submit" disabled={busy}>
+                <KeyRound size={16}/> {busy ? 'Authenticating…' : 'Sign in to Workspace'}
+              </button>
+            </form>
+          )}
 
-            <button type="submit" className="primary login-submit" disabled={busy}>
-              <KeyRound size={16}/> {busy ? 'Authenticating…' : 'Sign in to Workspace'}
-            </button>
-          </form>
         </div>
 
         <div className="login-footer">
@@ -167,6 +190,13 @@ export default function Login({onLogin}) {
           <span>Harborline Bank & Financial Services · Dual-Control Compliance & Audit System</span>
         </div>
       </div>
+
+      <aside className="login-art-panel" aria-label="FinServe workspace">
+        <div className="login-art">
+          <img src={workspacePicture} alt="From official notice to customer message. Draft from verified product information and bring the source to every review. Official source, draft, review."/>
+          {children}
+        </div>
+      </aside>
     </div>
   )
 }

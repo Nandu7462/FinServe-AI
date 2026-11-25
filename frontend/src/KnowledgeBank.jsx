@@ -1,7 +1,10 @@
 import React, {useEffect, useState} from 'react'
-import {Check, CircleAlert, LibraryBig, Plus, Search, Sparkles, Tag, User} from 'lucide-react'
+import {Check, CircleAlert, LibraryBig, Lock, Plus, Search, Sparkles, Tag, User} from 'lucide-react'
 
-export default function KnowledgeBank() {
+export default function KnowledgeBank({user, mode}) {
+  const isDrafter = user?.role === 'drafter' || mode === 'approved'
+  const isCompliance = user?.role === 'compliance' || mode === 'rules'
+  const canManageRules = user?.role === 'compliance'
   const [memories, setMemories] = useState([])
   const [preferences, setPreferences] = useState([])
   const [filter, setFilter] = useState('all') // 'all', 'explanation', 'preference'
@@ -114,7 +117,7 @@ export default function KnowledgeBank() {
                   fontSize:'12px',
                   borderRadius:'8px',
                   border: filter === type ? 'none' : '1px solid #dad6e6',
-                  background: filter === type ? '#7861a9' : '#fff',
+                  background: filter === type ? '#315dcc' : '#fff',
                   color: filter === type ? '#fff' : '#303347'
                 }}
                 onClick={() => setFilter(type)}
@@ -153,7 +156,7 @@ export default function KnowledgeBank() {
                       {m.kind === 'explanation' ? (m.category || 'Explanation') : 'Customer Profile'}
                     </span>
                     <strong style={{fontSize:'14px', color:'#303347'}}>
-                      {m.kind === 'explanation' ? `${m.bank} · ${m.product}` : `Customer: ${m.customer}`}
+                      {m.kind === 'explanation' ? `${m.bank} · ${m.product}` : `Customer: ${m.name ? `${m.name} (${m.customer})` : m.customer}`}
                     </strong>
                   </span>
                   <small style={{color:'#62677c', fontSize:'11px'}}>
@@ -167,14 +170,25 @@ export default function KnowledgeBank() {
                       {m.explanation}
                     </p>
                     {m.reusable_wording && (
-                      <div style={{padding:'8px 12px', background:'#f8f5ff', borderRadius:'8px', fontSize:'12px', color:'#65489c', marginBottom:'8px'}}>
+                      <div style={{padding:'8px 12px', background:'#f8f5ff', borderRadius:'8px', fontSize:'12px', color:'#244cae', marginBottom:'8px'}}>
                         <strong>Reusable clause:</strong> {m.reusable_wording}
                       </div>
                     )}
                   </>
                 ) : (
-                  <div style={{fontSize:'13px', color:'#303347'}}>
-                    <span><strong>Tone:</strong> {m.tone}</span> · <span><strong>Channel:</strong> {m.channel}</span> · <span><strong>Tier:</strong> {m.tier || 'Retail'}</span>
+                  <div style={{fontSize:'13px', color:'#303347', display:'flex', gap:'8px', flexWrap:'wrap', margin:'6px 0'}}>
+                    <span style={{padding:'3px 8px', background:'#eef4ff', color:'#244cae', borderRadius:'6px', fontWeight:600, fontSize:'11.5px'}}>
+                      🌐 {m.language || 'English'}
+                    </span>
+                    <span style={{padding:'3px 8px', background:'#f0fdf4', color:'#166534', borderRadius:'6px', fontWeight:600, fontSize:'11.5px'}}>
+                      📬 {m.channel || 'Email'}
+                    </span>
+                    <span style={{padding:'3px 8px', background:'#faf5ff', color:'#6b21a8', borderRadius:'6px', fontWeight:600, fontSize:'11.5px'}}>
+                      🎭 {m.tone || 'Friendly'}
+                    </span>
+                    <span style={{padding:'3px 8px', background:'#fffbeb', color:'#92400e', borderRadius:'6px', fontWeight:600, fontSize:'11.5px'}}>
+                      🏷️ {m.tier || 'Retail'}
+                    </span>
                   </div>
                 )}
 
@@ -195,66 +209,87 @@ export default function KnowledgeBank() {
     </div>
 
     <div className="column">
-      <section className="card">
-        <div className="card-head">
-          <div className="icon amber"><Plus size={18}/></div>
-          <div>
-            <h2>Add Approved Explanation</h2>
-            <p>Teach Memento new standard phrasing for financial notices to ensure consistent drafting across your team.</p>
-          </div>
-        </div>
-
-        <form onSubmit={handleAddExplanation} className="editor">
-          <div className="fields">
-            <label>Institution
-              <input value={bank} onChange={e => setBank(e.target.value)} required maxLength={120}/>
-            </label>
-            <label>Category
-              <select value={category} onChange={e => setCategory(e.target.value)}>
-                <option value="Fee">Fee</option>
-                <option value="Product">Product</option>
-                <option value="Service">Service</option>
-              </select>
-            </label>
+      {canManageRules ? (
+        <section className="card">
+          <div className="card-head">
+            <div className="icon amber"><Plus size={18}/></div>
+            <div>
+              <h2>Add Approved Explanation</h2>
+              <p>Teach Memento new standard phrasing for financial notices to ensure consistent drafting across your team.</p>
+            </div>
           </div>
 
-          <label>Product or Service
-            <input
-              value={product}
-              onChange={e => setProduct(e.target.value)}
-              placeholder="e.g. Platinum Debit Card, Everyday Savings"
-              required
-              maxLength={120}
-            />
-          </label>
+          <form onSubmit={handleAddExplanation} className="editor">
+            <div className="fields">
+              <label>Institution
+                <input value={bank} onChange={e => setBank(e.target.value)} required maxLength={120}/>
+              </label>
+              <label>Category
+                <select value={category} onChange={e => setCategory(e.target.value)}>
+                  <option value="Fee">Fee</option>
+                  <option value="Product">Product</option>
+                  <option value="Service">Service</option>
+                </select>
+              </label>
+            </div>
 
-          <label>Standard Approved Explanation
-            <textarea
-              value={explanation}
-              onChange={e => setExplanation(e.target.value)}
-              placeholder="Explain the reason for the fee revision, feature upgrade, or maintenance window..."
-              rows={4}
-              required
-              maxLength={1500}
-            />
-            <small>This approved explanation is retrieved by the AI to maintain consistency with past communications.</small>
-          </label>
+            <label>Product or Service
+              <input
+                value={product}
+                onChange={e => setProduct(e.target.value)}
+                placeholder="e.g. Platinum Debit Card, Everyday Savings"
+                required
+                maxLength={120}
+              />
+            </label>
 
-          <label>Reusable Closing / Waiver Clause <small>Optional</small>
-            <textarea
-              value={reusableWording}
-              onChange={e => setReusableWording(e.target.value)}
-              placeholder="e.g. Annual fee is waived if spend exceeds ₹1,00,000 annually..."
-              rows={2}
-              maxLength={400}
-            />
-          </label>
+            <label>Standard Approved Explanation
+              <textarea
+                value={explanation}
+                onChange={e => setExplanation(e.target.value)}
+                placeholder="Explain the reason for the fee revision, feature upgrade, or maintenance window..."
+                rows={4}
+                required
+                maxLength={1500}
+              />
+              <small>This approved explanation is retrieved by the AI to maintain consistency with past communications.</small>
+            </label>
 
-          <button className="primary" disabled={submitting || !product.trim() || !explanation.trim()}>
-            <Sparkles size={16}/> {submitting ? 'Saving to Memento…' : 'Save to Memento'}
-          </button>
-        </form>
-      </section>
+            <label>Reusable Closing / Waiver Clause <small>Optional</small>
+              <textarea
+                value={reusableWording}
+                onChange={e => setReusableWording(e.target.value)}
+                placeholder="e.g. Annual fee is waived if spend exceeds ₹1,00,000 annually..."
+                rows={2}
+                maxLength={400}
+              />
+            </label>
+
+            <button className="primary" disabled={submitting || !product.trim() || !explanation.trim()}>
+              <Sparkles size={16}/> {submitting ? 'Saving to Memento…' : 'Save to Memento'}
+            </button>
+          </form>
+        </section>
+      ) : (
+        <section className="card">
+          <div className="card-head">
+            <div className="icon"><Lock size={18}/></div>
+            <div>
+              <h2>Compliance Governance Gate</h2>
+              <p>Segregation of Duties Enforcement</p>
+            </div>
+          </div>
+          <div className="panel-note" style={{padding:'16px', background:'#fbf9ee', border:'1px solid #f2e2b6', borderRadius:'10px', color:'#785210', lineHeight:1.6}}>
+            <Lock size={16} style={{verticalAlign:'middle', marginRight:'6px'}}/>
+            <strong>Read-Only Approved Library:</strong> As a <strong>Communications Drafter (Alex Morgan)</strong>, you can view and reference approved explanations and customer preferences to guide drafts. Modifying or adding compliance rules requires Jane Smith's authorization.
+          </div>
+          <div style={{marginTop:'16px', padding:'12px', background:'#f8f9fc', borderRadius:'8px', border:'1px solid #e2e8f0', fontSize:'12.5px', color:'#475569'}}>
+            <strong>Segregation of Duties Rule:</strong><br/>
+            • <em>Can:</em> Create, edit and submit drafts<br/>
+            • <em>Cannot:</em> Approve messages or change rules
+          </div>
+        </section>
+      )}
     </div>
   </div>
 }
