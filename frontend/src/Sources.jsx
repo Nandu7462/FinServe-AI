@@ -3,13 +3,12 @@ import {ArrowUpRight, BookOpen, Check, CircleAlert, Globe, Sparkles} from 'lucid
 
 export default function Sources({notices, busy, register, select}) {
   const [scrapeUrl, setScrapeUrl] = useState('')
-  const [scrapeBank, setScrapeBank] = useState('')
   const [scraping, setScraping] = useState(false)
   const [scrapeError, setScrapeError] = useState('')
   const [extractedNotice, setExtractedNotice] = useState(null)
 
   // Manual or pre-filled form fields
-  const [bank, setBank] = useState('Harborline Bank')
+  const bank = "HDFC Bank"
   const [url, setUrl] = useState('')
   const [title, setTitle] = useState('')
   const [product, setProduct] = useState('')
@@ -25,12 +24,11 @@ export default function Sources({notices, busy, register, select}) {
       const response = await fetch('/api/sources/scrape', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({url: scrapeUrl.trim(), bank: scrapeBank.trim() || undefined})
+        body: JSON.stringify({url: scrapeUrl.trim(), bank})
       })
       const data = await response.json()
       if (!response.ok) throw new Error(data.detail || 'Failed to scrape webpage.')
       setExtractedNotice(data)
-      setBank(data.bank || 'Financial Institution')
       setUrl(data.url || scrapeUrl.trim())
       setTitle(data.title || '')
       setProduct(data.product || '')
@@ -63,7 +61,7 @@ export default function Sources({notices, busy, register, select}) {
           <div className="icon"><Globe size={18}/></div>
           <div>
             <h2>Scrape Public Notice with Firecrawl</h2>
-            <p>Enter any public banking URL to automatically extract official product information and passages.</p>
+            <p>Enter an official HDFC Bank URL to automatically extract official product information and passages.</p>
           </div>
         </div>
         <form onSubmit={handleScrape} className="editor">
@@ -72,18 +70,9 @@ export default function Sources({notices, busy, register, select}) {
               type="url"
               value={scrapeUrl}
               onChange={e => setScrapeUrl(e.target.value)}
-              placeholder="https://www.nsandi.com/products/premium-bonds"
+              placeholder="https://www.hdfc.bank.in/neft"
               disabled={scraping || busy}
               required
-            />
-          </label>
-          <label>Institution Name <small>Optional</small>
-            <input
-              type="text"
-              value={scrapeBank}
-              onChange={e => setScrapeBank(e.target.value)}
-              placeholder="e.g. NS&I, HDFC Bank, Barclays"
-              disabled={scraping || busy}
             />
           </label>
           <button className="primary" disabled={scraping || busy || !scrapeUrl.trim()}>
@@ -109,7 +98,7 @@ export default function Sources({notices, busy, register, select}) {
         <form className="editor" onSubmit={submit}>
           <div className="fields">
             <label>Institution
-              <input value={bank} onChange={e => setBank(e.target.value)} required maxLength={120}/>
+              <input value={bank} readOnly required maxLength={120}/>
             </label>
             <label>Category
               <select value={category} onChange={e => setCategory(e.target.value)}>
@@ -122,10 +111,10 @@ export default function Sources({notices, busy, register, select}) {
           </label>
           <div className="fields">
             <label>Notice Title
-              <input value={title} onChange={e => setTitle(e.target.value)} required maxLength={160} placeholder="e.g. Debit Card Annual Fee Revision"/>
+              <input value={title} onChange={e => setTitle(e.target.value)} required maxLength={160} placeholder="Online NEFT charges"/>
             </label>
             <label>Product or Service
-              <input value={product} onChange={e => setProduct(e.target.value)} required maxLength={120} placeholder="e.g. Platinum Debit Card"/>
+              <input value={product} onChange={e => setProduct(e.target.value)} required maxLength={120} placeholder="Savings Account"/>
             </label>
           </div>
           <label>Exact Customer-Facing Passage

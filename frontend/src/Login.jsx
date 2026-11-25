@@ -142,7 +142,7 @@ export default function Login({onLogin, children}) {
                   value={email}
                   readOnly={method === 'profile-password'}
                   onChange={e => setEmail(e.target.value)}
-                  placeholder="name@harborline.bank"
+                  placeholder="Enter your workspace email"
                   required
                   disabled={busy}
                 />
@@ -172,7 +172,7 @@ export default function Login({onLogin, children}) {
 
         <div className="login-footer">
           <Building2 size={14}/>
-          <span>Harborline Bank & Financial Services · Dual-Control Compliance & Audit System</span>
+          <span>Independent workspace · HDFC Bank public sources</span>
         </div>
       </div>
 

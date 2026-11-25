@@ -19,7 +19,7 @@ import Readability from './Readability.jsx'
 
 async function api(path, payload, token) {
   const headers = { 'Content-Type': 'application/json' }
-  const activeToken = token || localStorage.getItem('finserve_token')
+  const activeToken = token || localStorage.getItem('hdfc_finserve_token')
   if (activeToken) {
     headers['Authorization'] = 'Bearer ' + activeToken
   }
@@ -34,35 +34,6 @@ async function api(path, payload, token) {
 const date = value => new Date(value).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })
 const states = { rejected: 'Returned / Rejected', approved: 'Approved', blocked: 'Needs source review', draft: 'Ready for review' }
 
-function ReferenceFx({ draft }) {
-  const [currency, setCurrency] = useState('USD')
-  const [quote, setQuote] = useState(null)
-  const [error, setError] = useState('')
-  const [busy, setBusy] = useState(false)
-
-  async function fetchQuote(event) {
-    event.preventDefault()
-    setBusy(true); setQuote(null); setError('')
-    try { setQuote(await api('drafts/' + draft.id + '/reference-fx?currency=' + currency)) }
-    catch (err) { setError(err.message) }
-    finally { setBusy(false) }
-  }
-
-  return <details className="fx">
-    <summary>Currency estimate (INR conversion)</summary>
-    <p className="panel-note">Reference only. The customer notice retains the verified INR fee.</p>
-    <form onSubmit={fetchQuote} className="fx-form">
-      <select aria-label="Estimate currency" value={currency} disabled={busy} onChange={event => { setCurrency(event.target.value); setQuote(null); setError('') }}>
-        {['USD', 'EUR', 'GBP'].map(code => <option key={code}>{code}</option>)}
-      </select>
-      <button className="primary" disabled={busy}>{busy ? 'Checking…' : 'Get estimate'}</button>
-    </form>
-    {quote && <p role="status" className="panel-note"><strong>≈ {quote.currency} {quote.amount}</strong> · {quote.date} · <a href="https://frankfurter.dev/" target="_blank" rel="noreferrer">Frankfurter</a></p>}
-    {error && <p role="alert" className="panel-note">{error}</p>}
-  </details>
-}
-
-// Pre-Flight Regulatory Compliance Linter Component
 function PreFlightLinter({ item, subject, body, onInjectDisclaimers, canDraft }) {
   const [lintResult, setLintResult] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -78,7 +49,7 @@ function PreFlightLinter({ item, subject, body, onInjectDisclaimers, canDraft })
       subject: subject || '',
       body: body || '',
       facts: item?.facts || {},
-      bank: item?.source?.bank || 'Harborline Bank',
+      bank: item?.source?.bank || 'HDFC Bank',
       language: item?.language || 'English'
     })
       .then(res => {
@@ -100,7 +71,7 @@ function PreFlightLinter({ item, subject, body, onInjectDisclaimers, canDraft })
       <div className="linter-head">
         <div>
           <strong style={{ fontSize: '13.5px', color: 'var(--text-main)' }}>Regulatory Pre-Flight Linter</strong>
-          <small style={{ display: 'block', color: 'var(--text-muted)' }}>Automated statutory checks (RBI, FCA, CFPB rules)</small>
+          <small style={{ display: 'block', color: 'var(--text-muted)' }}>Checks for source details and security reminders</small>
         </div>
         <span className={`linter-score-badge ${isCompliant ? 'score-compliant' : 'score-warning'}`}>
           {isCompliant ? <ShieldCheck size={14} /> : <ShieldAlert size={14} />}
@@ -193,7 +164,6 @@ function VisualRedlineDiff({ source, body, wording }) {
 // Role Specifications defined exactly per user requirement table
 const ROLE_SPECS = {
   drafter: {
-    personaName: 'Alex Morgan',
     title: 'Communications Drafter',
     mainJob: 'Writes messages',
     homeScreen: 'drafts',
@@ -214,7 +184,6 @@ const ROLE_SPECS = {
     cannot: 'Approve messages or change rules'
   },
   compliance: {
-    personaName: 'Jane Smith',
     title: 'Compliance Officer',
     mainJob: 'Checks and approves them',
     homeScreen: 'review',
@@ -235,7 +204,6 @@ const ROLE_SPECS = {
     cannot: 'Edit draft text directly or manage users'
   },
   admin: {
-    personaName: 'Sarah Jenkins',
     title: 'Administrator',
     mainJob: 'Manages the system',
     homeScreen: 'overview',
@@ -261,13 +229,13 @@ const ROLE_SPECS = {
 function App() {
   const [user, setUser] = useState(() => {
     try {
-      const saved = localStorage.getItem('finserve_user')
+      const saved = localStorage.getItem('hdfc_finserve_user')
       return saved ? JSON.parse(saved) : null
     } catch {
       return null
     }
   })
-  const [token, setToken] = useState(() => localStorage.getItem('finserve_token') || '')
+  const [token, setToken] = useState(() => localStorage.getItem('hdfc_finserve_token') || '')
 
   // Theme Management (Midnight Dark Theme / Light Mode)
   const [theme, setTheme] = useState(() => localStorage.getItem('finserve_theme') || 'light')
@@ -348,8 +316,8 @@ function App() {
     setUser(userData)
     setToken(tokenStr)
     setReviewer(userData.name)
-    localStorage.setItem('finserve_user', JSON.stringify(userData))
-    localStorage.setItem('finserve_token', tokenStr)
+    localStorage.setItem('hdfc_finserve_user', JSON.stringify(userData))
+    localStorage.setItem('hdfc_finserve_token', tokenStr)
     const targetHome = ROLE_SPECS[userData.role]?.homeScreen || 'drafts'
     setView(targetHome)
     setMessage(`Signed in as ${userData.name} (${ROLE_SPECS[userData.role]?.title || 'Staff'})`)
@@ -359,8 +327,8 @@ function App() {
     api('auth/logout', {}, token).catch(() => { })
     setUser(null)
     setToken('')
-    localStorage.removeItem('finserve_user')
-    localStorage.removeItem('finserve_token')
+    localStorage.removeItem('hdfc_finserve_user')
+    localStorage.removeItem('hdfc_finserve_token')
   }
 
   useEffect(() => {
@@ -430,7 +398,7 @@ function App() {
       if (pendingDraft) {
         open(pendingDraft)
       } else {
-        setMessage('No pending drafts in the review queue. All customer communications are approved!')
+        setMessage('No drafts are awaiting review.')
       }
     } else if (currentRole === 'admin') {
       setView('users')
@@ -439,12 +407,12 @@ function App() {
 
   function handleInjectDisclaimers() {
     let updatedBody = body
-    const bankName = item?.source?.bank || 'Harborline Bank'
+    const bankName = item?.source?.bank || 'HDFC Bank'
     if (!updatedBody.toLowerCase().includes('pin') && !updatedBody.toLowerCase().includes('never ask')) {
       updatedBody += `\n\nSecurity Advisory: ${bankName} will never ask for your PIN, OTP, CVV, or net banking password via phone, email, or SMS.`
     }
     if (!updatedBody.toLowerCase().includes('support') && !updatedBody.toLowerCase().includes('customer care') && !updatedBody.toLowerCase().includes('queries')) {
-      updatedBody += `\n\nFor questions or fee waiver inquiries, please contact our 24/7 customer care team or visit your nearest branch.`
+      updatedBody += `\n\nFor questions, refer to the HDFC Bank source linked to this message.`
     }
     setBody(updatedBody)
     setMessage('Auto-injected mandatory statutory and anti-phishing disclaimers!')
@@ -480,7 +448,7 @@ function App() {
     return (
       <>
         <Login onLogin={handleLogin} />
-        <ChatWidget customerId="retail-001" />
+        <ChatWidget />
       </>
     )
   }
@@ -501,10 +469,10 @@ function App() {
     approved: records.filter(d => d.status === 'approved').length,
     pending: records.filter(d => d.status === 'draft').length,
     high_risk: records.filter(d => d.status === 'blocked' || (d.warnings && d.warnings.length > 0)).length,
-    outdated: 1,
-    active_users: systemOverview?.users?.length || 3,
+    outdated: 0,
+    active_users: systemOverview?.users?.length || 0,
     source_errors: 0,
-    connection_status: 'Healthy (4/4 Online)'
+    connection_status: 'Loading'
   }
 
   return (
@@ -574,7 +542,7 @@ function App() {
           <div className="role-governance-card">
             <div className="governance-meta">
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <span className="governance-name">{currentSpec.personaName}</span>
+                <span className="governance-name">{user.name}</span>
                 <span className={'role-badge ' + currentRole}>{currentSpec.title}</span>
                 <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>· Main job: <strong>{currentSpec.mainJob}</strong></span>
               </div>
@@ -626,13 +594,13 @@ function App() {
           {message && <div role="status" className="success"><Check size={17} />{message}</div>}
 
           {/* =========================================================================
-              VIEW 1: MY DRAFTS (Home Screen for Alex Morgan - Drafter)
+              VIEW 1: MY DRAFTS (Home Screen for The drafter - Drafter)
               ========================================================================= */}
           {view === 'drafts' && (
             <section className="card history">
               <div className="card-head" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
-                  <h2>Alex Morgan's Draft Register</h2>
+                  <h2>Draft Register</h2>
                   <p>Browse, edit, and submit customer communications created for official banking notices.</p>
                 </div>
                 <div style={{ display: 'flex', gap: '6px' }}>
@@ -675,7 +643,7 @@ function App() {
                 <div className="empty">
                   <FileText size={28} />
                   <strong>No communications match the current filter</strong>
-                  <p>Alex Morgan can create compliant customer communications using the button below.</p>
+                  <p>The drafter can create compliant customer communications using the button below.</p>
                   <button className="primary" onClick={() => setView('compose')}>
                     <Plus size={15} /> Create draft
                   </button>
@@ -685,13 +653,13 @@ function App() {
           )}
 
           {/* =========================================================================
-              VIEW 2: REVIEW QUEUE (Home Screen for Jane Smith - Compliance Officer)
+              VIEW 2: REVIEW QUEUE (Home Screen for the compliance officer - Compliance Officer)
               ========================================================================= */}
           {view === 'review' && (
             <section className="card history">
               <div className="card-head" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
-                  <h2>Jane Smith's Compliance Review Queue</h2>
+                  <h2>Compliance Review Queue</h2>
                   <p>Verify source grounding, inspect anti-phishing safeguards, comment, approve, or reject customer drafts.</p>
                 </div>
                 <button className="primary approve" onClick={handleMainAction}>
@@ -724,14 +692,14 @@ function App() {
                 <div className="empty">
                   <ShieldCheck size={30} color="#288763" />
                   <strong>Compliance Review Queue is Clear</strong>
-                  <p>All submitted communications have been reviewed and approved by Jane Smith.</p>
+                  <p>No drafts are awaiting review.</p>
                 </div>
               )}
             </section>
           )}
 
           {/* =========================================================================
-              VIEW 3: SYSTEM OVERVIEW (Home Screen for Sarah Jenkins - Administrator)
+              VIEW 3: SYSTEM OVERVIEW (Home Screen for The administrator - Administrator)
               ========================================================================= */}
           {view === 'overview' && (
             <div className="column">
@@ -740,7 +708,7 @@ function App() {
                   <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
                     <div className="icon"><Layers3 size={20} /></div>
                     <div>
-                      <h2>Sarah Jenkins' System Overview</h2>
+                      <h2>System Overview</h2>
                       <p>Operational health of core BFSI components, web scraping tools, and knowledge bases.</p>
                     </div>
                   </div>
@@ -755,7 +723,7 @@ function App() {
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <strong style={{ fontSize: '14px', color: 'var(--text-main)' }}>{intg.name}</strong>
                         <span className="status-pill status-connected">
-                          <span className="status-dot-active" /> Connected
+                          <span className="status-dot-active" /> {intg.status}
                         </span>
                       </div>
                       <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', margin: '4px 0 8px' }}>{intg.description}</p>
@@ -794,7 +762,7 @@ function App() {
           )}
 
           {/* =========================================================================
-              VIEW 4: COMPOSE / DRAFT STUDIO (Alex Writes, Jane Reviews, Sarah Governs)
+              VIEW 4: COMPOSE / DRAFT STUDIO (Drafting and Review)
               ========================================================================= */}
           {view === 'compose' && (
             <div className="layout studio-layout">
@@ -812,7 +780,7 @@ function App() {
                   {!canDraft && (
                     <div className="panel-note" style={{ padding: '8px 12px', background: 'var(--table-hover)', border: '1px solid var(--border-line)', borderRadius: '8px', color: 'var(--text-muted)', marginBottom: '12px' }}>
                       <Lock size={13} style={{ verticalAlign: 'middle', marginRight: '5px' }} />
-                      <strong>Staff Governance:</strong> Viewing communication as <strong>{currentSpec.personaName} ({currentSpec.title})</strong>.
+                      <strong>Staff Governance:</strong> Viewing communication as <strong>{user.name} ({currentSpec.title})</strong>.
                     </div>
                   )}
 
@@ -910,7 +878,7 @@ function App() {
                       </div>
                     ) : (
                       <div style={{ marginTop: '12px', fontSize: '12px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                        * Draft generation is restricted to Communications Drafters (Alex Morgan).
+                        * Draft generation is restricted to Communications Drafters.
                       </div>
                     )}
                   </form>
@@ -947,10 +915,10 @@ function App() {
                     }}>
                       <div className="fields">
                         <label>Customer Reference ID
-                          <input value={prefCustomer} onChange={event => setPrefCustomer(event.target.value)} pattern="[a-zA-Z0-9_-]+" maxLength={80} placeholder="e.g. cust_wealth_401" required />
+                          <input value={prefCustomer} onChange={event => setPrefCustomer(event.target.value)} pattern="[a-zA-Z0-9_-]+" maxLength={80} placeholder="Customer reference" required />
                         </label>
                         <label>Customer Name
-                          <input value={prefName} onChange={event => setPrefName(event.target.value)} maxLength={120} placeholder="e.g. Sunita Rao" />
+                          <input value={prefName} onChange={event => setPrefName(event.target.value)} maxLength={120} placeholder="Customer name" />
                         </label>
                       </div>
                       <div className="fields">
@@ -986,7 +954,7 @@ function App() {
                     <div className="icon"><Clipboard size={18} /></div>
                     <div>
                       <h2>Customer Communication</h2>
-                      <p>Grounded in Firecrawl public notice and Memento approved phrasing.</p>
+                      <p>{item?.brief || 'Review the draft alongside its HDFC Bank source.'}</p>
                     </div>
                     {item && <span className={'badge ' + item.status}>{states[item.status] || item.status}</span>}
                   </div>
@@ -1051,7 +1019,7 @@ function App() {
                               <Layers3 size={20} color="#315dcc" />
                               <span>{item.source?.bank || 'Bank'}</span>
                             </div>
-                            <span className="email-official-tag">Official Notice</span>
+                            <span className="email-official-tag">Message preview</span>
                           </div>
                           <div className="email-subject-line">
                             Subject: {subject}
@@ -1068,7 +1036,7 @@ function App() {
                           <div className="phone-speaker" />
                           <div className="phone-screen">
                             <div className="sms-sender-header">
-                              {item.source?.bank?.toUpperCase().replace(/\s+/g, '') || 'BANK'}-ALERT
+                              SMS preview · {item.source.bank}
                             </div>
                             <div className="sms-bubble">
                               {smsPreview}
@@ -1089,10 +1057,10 @@ function App() {
                             </div>
                             <div className="whatsapp-header-info">
                               <div className="whatsapp-sender">
-                                {item.source?.bank || 'Harborline Bank'}
-                                <span className="whatsapp-verified-badge" title="Official Verified Business Account">✓</span>
+                                {item.source?.bank || 'HDFC Bank'}
+
                               </div>
-                              <span className="whatsapp-status">Official Business Account</span>
+                              <span className="whatsapp-status">Message preview</span>
                             </div>
                           </div>
                           <div className="whatsapp-chat-body">
@@ -1100,15 +1068,7 @@ function App() {
                               {item.whatsapp_body || body}
                             </div>
                             <div className="whatsapp-buttons-container">
-                              <button type="button" className="whatsapp-action-btn" onClick={() => setMessage('WhatsApp CTA Action: Opening official fee schedule document.')}>
-                                📄 View Full Fee Schedule
-                              </button>
-                              <button type="button" className="whatsapp-action-btn" onClick={() => setMessage('WhatsApp CTA Action: Retrieved Memento fee waiver criteria.')}>
-                                💡 Fee Waiver Criteria
-                              </button>
-                              <button type="button" className="whatsapp-action-btn" onClick={() => setMessage('WhatsApp CTA Action: Routed customer to Harborline support team.')}>
-                                📞 Contact Customer Care
-                              </button>
+                              <a className="whatsapp-action-btn" href={item.source.url} target="_blank" rel="noreferrer">View HDFC Bank source</a>
                             </div>
                           </div>
                         </div>
@@ -1136,7 +1096,7 @@ function App() {
                       <form className="editor" style={{ marginTop: '16px' }} onSubmit={event => {
                         event.preventDefault()
                         if (!canApprove) {
-                          setError("Segregation of duties: Only a Compliance Officer (Jane Smith) can approve messages.")
+                          setError("Segregation of duties: Only a Compliance Officer can approve messages.")
                           return
                         }
                         act(async () => {
@@ -1152,7 +1112,7 @@ function App() {
                             {!canDraft && (
                               <div className="panel-note" style={{ padding: '8px 12px', background: 'var(--table-hover)', border: '1px solid var(--border-line)', borderRadius: '8px', color: 'var(--text-muted)', marginBottom: '8px' }}>
                                 <Lock size={13} style={{ verticalAlign: 'middle', marginRight: '5px' }} />
-                                <strong>Jane Smith (Compliance):</strong> Cannot edit draft text directly. You can comment, reject with revision feedback, or provide approved wording.
+                                <strong>Compliance review:</strong> Cannot edit draft text directly. You can comment, reject with revision feedback, or provide approved wording.
                               </div>
                             )}
                             <label>Subject
@@ -1185,7 +1145,7 @@ function App() {
                           <>
                             {/* Segregation of Duties Action Block */}
                             {canApprove ? (
-                              /* Compliance Officer (Jane Smith): Comment, Approve, Reject */
+                              /* Compliance Officer: Comment, Approve, Reject */
                               <>
                                 <div className="fields">
                                   <label>Compliance Officer
@@ -1229,13 +1189,13 @@ function App() {
                                 </div>
                               </>
                             ) : canDraft ? (
-                              /* Communications Drafter (Alex Morgan): Submit for Review */
+                              /* Communications Drafter: Submit for Review */
                               <div style={{ marginTop: '12px', padding: '14px', background: 'var(--table-hover)', border: '1px solid var(--border-line)', borderRadius: '10px' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--green)', fontWeight: 600, fontSize: '13px' }}>
                                   <Check size={16} /> Draft Ready for Review
                                 </div>
                                 <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '6px 0 12px' }}>
-                                  Alex Morgan cannot approve messages. When you finish drafting, this draft is automatically queued for Jane Smith (Compliance Officer).
+                                  The drafter cannot approve messages. When you finish drafting, this draft is automatically queued for a compliance officer.
                                 </p>
                                 <button
                                   type="button"
@@ -1249,10 +1209,10 @@ function App() {
                                 </button>
                               </div>
                             ) : (
-                              /* Administrator (Sarah Jenkins): Read-Only Governance */
+                              /* Administrator: Read-Only Governance */
                               <div className="panel-note" style={{ padding: '12px', background: 'var(--table-hover)', border: '1px solid var(--border-line)', borderRadius: '8px', color: 'var(--text-muted)' }}>
                                 <Lock size={14} style={{ verticalAlign: 'middle', marginRight: '5px' }} />
-                                <strong>Administrator Mode:</strong> Sarah Jenkins manages users and system integrations; writing or approving messages is restricted to Drafter and Compliance roles.
+                                <strong>Administrator Mode:</strong> The administrator manages users and system integrations; writing or approving messages is restricted to Drafter and Compliance roles.
                               </div>
                             )}
                           </>
@@ -1280,7 +1240,7 @@ function App() {
                     <div className="icon amber"><BookOpen size={18} /></div>
                     <div>
                       <h2>Source evidence</h2><small className="provider-label">{source?.retriever || config?.retriever}</small>
-                      <p>{source?.url ? 'Verified official web document' : 'Demonstration notice'}</p>
+                      <p>{source?.url ? 'Verified official web document' : 'Source unavailable'}</p>
                     </div>
                   </div>
                   {source ? (
@@ -1310,13 +1270,10 @@ function App() {
                             </div>
                           )}
                           <details open={!source.url}>
-                            <summary>Scraped Source Snapshot</summary>
+                            <summary>{item.brief ? 'Verified source excerpt' : 'Scraped Source Snapshot'}</summary>
                             <div className="excerpt">{source.text}</div>
                           </details>
                           <p className="timestamp">Retrieved {date(source.retrieved_at)}</p>
-                          {item.status !== 'blocked' && item.facts?.fee && /^(₹|INR )/.test(item.facts.fee) && (
-                            <ReferenceFx key={item.id} draft={item} />
-                          )}
                           {item.warnings?.map(warning => (
                             <div key={warning} className="alert"><CircleAlert size={16} />{warning}</div>
                           ))}
@@ -1358,14 +1315,14 @@ function App() {
           )}
 
           {/* =========================================================================
-              VIEW 6 & 7: APPROVED LIBRARY (Alex) & COMPLIANCE RULES (Jane)
+              VIEW 6 & 7: APPROVED LIBRARY & COMPLIANCE RULES
               ========================================================================= */}
           {(view === 'approved' || view === 'rules') && (
             <KnowledgeBank user={user} mode={view} />
           )}
 
           {/* =========================================================================
-              VIEW 8: USERS AND ROLES (Sarah Jenkins - Administrator)
+              VIEW 8: USERS AND ROLES (The administrator - Administrator)
               ========================================================================= */}
           {view === 'users' && (
             <div className="layout">
@@ -1427,17 +1384,17 @@ function App() {
 
                   <form onSubmit={handleCreateUser} className="editor">
                     <label>Full Name
-                      <input value={newUserName} onChange={e => setNewUserName(e.target.value)} placeholder="e.g. David Patel" required />
+                      <input value={newUserName} onChange={e => setNewUserName(e.target.value)} placeholder="Staff name" required />
                     </label>
                     <label>Bank Email Address
-                      <input type="email" value={newUserEmail} onChange={e => setNewUserEmail(e.target.value)} placeholder="d.patel@harborline.bank" required />
+                      <input type="email" value={newUserEmail} onChange={e => setNewUserEmail(e.target.value)} placeholder="Staff email address" required />
                     </label>
                     <div className="fields">
                       <label>Assigned Persona & Role
                         <select value={newUserRole} onChange={e => setNewUserRole(e.target.value)}>
-                          <option value="drafter">Communications Drafter (Alex Morgan)</option>
-                          <option value="compliance">Compliance Officer (Jane Smith)</option>
-                          <option value="admin">Administrator (Sarah Jenkins)</option>
+                          <option value="drafter">Communications Drafter</option>
+                          <option value="compliance">Compliance Officer</option>
+                          <option value="admin">Administrator</option>
                         </select>
                       </label>
                       <label>Department
@@ -1457,7 +1414,7 @@ function App() {
           )}
 
           {/* =========================================================================
-              VIEW 9: SOURCE SETTINGS (Sarah Jenkins - Administrator)
+              VIEW 9: SOURCE SETTINGS (The administrator - Administrator)
               ========================================================================= */}
           {view === 'settings' && (
             <section className="card">
@@ -1465,41 +1422,20 @@ function App() {
                 <div className="icon"><Settings size={18} /></div>
                 <div>
                   <h2>Source Scraper & Firecrawl Settings</h2>
-                  <p>Configure official crawler boundaries, allowed banking domains, and cache parameters.</p>
+                  <p>Official HDFC Bank sources and passage verification.</p>
                 </div>
               </div>
 
               <div style={{ display: 'grid', gap: '16px', maxWidth: '680px' }}>
-                <label>Active Retriever Engine
-                  <input value="Firecrawl v2 (Deep Crawler with BeautifulSoup fallback)" disabled />
-                </label>
-                <label>Allowed Banking & Financial Domains (Whitelist)
-                  <textarea
-                    defaultValue="harborline.bank&#10;hdfcbank.com&#10;nsandi.com&#10;barclays.co.uk&#10;bankofengland.co.uk"
-                    rows={5}
-                  />
-                  <small>Only pages within these verified financial institutions will be processed by Firecrawl.</small>
-                </label>
-                <div className="fields">
-                  <label>Crawler Cache TTL (Seconds)
-                    <input type="number" defaultValue="3600" />
-                  </label>
-                  <label>Passage Verification Strictness
-                    <select defaultValue="strict">
-                      <option value="strict">Strict (Exact passage match in scraped document)</option>
-                      <option value="semantic">Semantic (Embeddings similarity match)</option>
-                    </select>
-                  </label>
-                </div>
-                <button type="button" className="primary" onClick={() => setMessage('Source settings updated and saved successfully.')}>
-                  Save Configuration
-                </button>
+                <label>Retriever<input value={config?.retriever || 'Loading'} readOnly /></label>
+                <label>Official source websites<input value="hdfc.bank.in and hdfcbank.com (including www)" readOnly /></label>
+                <p>Drafting requires the registered passage to match the current source.</p>
               </div>
             </section>
           )}
 
           {/* =========================================================================
-              VIEW 10: INTEGRATIONS (Sarah Jenkins - Administrator)
+              VIEW 10: INTEGRATIONS (The administrator - Administrator)
               ========================================================================= */}
           {view === 'integrations' && (
             <section className="card">
@@ -1507,37 +1443,12 @@ function App() {
                 <div className="icon"><Database size={18} /></div>
                 <div>
                   <h2>Integrations Health & Connection Diagnostics</h2>
-                  <p>Real-time status of Firecrawl, Memento Knowledge Engine, Google Gemini API, and SQLite DB.</p>
+                  <p>Configured providers and workspace database.</p>
                 </div>
               </div>
 
               <div className="integration-grid">
-                {[
-                  {
-                    name: 'Firecrawl v2 Web Scraper',
-                    status: 'Connected',
-                    desc: 'Scrapes live product notices, fee schedules, and regulatory announcements.',
-                    metric: 'Latency: 120ms · API: Healthy'
-                  },
-                  {
-                    name: 'Memento MCP Knowledge Engine',
-                    status: 'Connected',
-                    desc: 'Stores approved explanations and customer communication preferences.',
-                    metric: 'Memory Store: finserve-memory.db · Sync: Active'
-                  },
-                  {
-                    name: 'Google Gemini 3.8 Flash',
-                    status: 'Connected',
-                    desc: 'Drafts multilingual compliant communications adhering to grounding facts.',
-                    metric: 'Model: gemini-3.8-flash · Status: 200 OK'
-                  },
-                  {
-                    name: 'FinServe Core Database',
-                    status: 'Connected',
-                    desc: 'Relational storage for drafts, staff directory, and compliance audit trail.',
-                    metric: 'Engine: SQLite (finserve.db) · Connections: Active'
-                  }
-                ].map(item => (
+                {Object.values(systemOverview?.integrations || {}).map(item => (
                   <div key={item.name} className="integration-card">
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <strong style={{ fontSize: '14px', color: 'var(--text-main)' }}>{item.name}</strong>
@@ -1545,9 +1456,9 @@ function App() {
                         <span className="status-dot-active" /> {item.status}
                       </span>
                     </div>
-                    <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', margin: '6px 0' }}>{item.desc}</p>
+                    <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', margin: '6px 0' }}>{item.description}</p>
                     <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: 'auto', paddingTop: '8px', borderTop: '1px solid var(--border-line)' }}>
-                      {item.metric}
+                      {item.model || item.dialect}
                     </div>
                   </div>
                 ))}
@@ -1556,7 +1467,7 @@ function App() {
           )}
 
           {/* =========================================================================
-              VIEW 11: AUDIT LOG (Jane & Sarah)
+              VIEW 11: AUDIT LOG
               ========================================================================= */}
           {view === 'audit' && (
             <section className="card">
@@ -1607,7 +1518,7 @@ function App() {
           )}
 
         </div>
-        <ChatWidget customerId={customer || 'retail-001'} />
+        <ChatWidget customerId={customer || ''} />
       </main>
     </div>
   )

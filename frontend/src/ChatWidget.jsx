@@ -5,29 +5,20 @@ import {
 } from 'lucide-react'
 
 const QUICK_PROMPTS = [
-  "What is the Platinum Debit Card annual fee?",
-  "How can I get my card annual fee waived?",
-  "When is the scheduled banking maintenance window?",
-  "What features are included in Everyday Savings Account?",
-  "Can bank staff ask me for my Net Banking OTP?"
+  "How is savings interest calculated?",
+  "What are the online NEFT charges?",
+  "Can I stop payment on a cheque?"
 ]
 
 const WELCOME_MESSAGE = {
-  id: 'welcome-01',
+  id: 'welcome',
   role: 'assistant',
-  content: `👋 **Welcome to Harborline Bank Customer Support!**\n\nI am your **FinServe AI Assistant**, powered by Gemini and grounded in official notices and approved policy memories.\n\nHow can I help you today? You can ask about:\n• Card fee revisions & waiver conditions\n• Scheduled maintenance & digital banking availability\n• Account perks & statement downloads`,
-  citations: [
-    {
-      type: 'Harborline Policy',
-      title: 'FinServe Grounded AI Directory',
-      reference: 'Verified Notice & Memento Store',
-      details: 'Instant access to active product disclosures and waiver policies.'
-    }
-  ],
+  content: 'Ask about the HDFC Bank public sources in this workspace.',
+  citations: [],
   timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
-export default function ChatWidget({ customerId = 'retail-001' }) {
+export default function ChatWidget({ customerId = null }) {
   const [isOpen, setIsOpen] = useState(false)
   const [messages, setMessages] = useState([WELCOME_MESSAGE])
   const [input, setInput] = useState('')
@@ -86,7 +77,7 @@ export default function ChatWidget({ customerId = 'retail-001' }) {
       const botMsg = {
         id: 'msg-bot-' + Date.now(),
         role: 'assistant',
-        content: data.reply || 'Thank you for your inquiry. Please reach out to customer support at 1800-HARBORLINE.',
+        content: data.reply || 'Thank you for your inquiry. Please consult the linked HDFC Bank source.',
         citations: data.citations || [],
         source: data.source || 'grounded',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -154,7 +145,7 @@ export default function ChatWidget({ customerId = 'retail-001' }) {
         <button
           className="chat-floating-trigger"
           onClick={() => setIsOpen(true)}
-          aria-label="Open 24/7 Customer Support Chat"
+          aria-label="Open support chat"
         >
           <div className="trigger-pulse-indicator" />
           <MessageSquare size={20} className="trigger-icon" />
@@ -208,7 +199,7 @@ export default function ChatWidget({ customerId = 'retail-001' }) {
           <div className="chat-security-banner">
             <ShieldAlert size={14} className="security-icon" />
             <span>
-              <strong>Security Note:</strong> Harborline Bank will never ask for your PIN, OTP, password, or CVV.
+              <strong>Security Note:</strong> HDFC Bank will never ask for your PIN, OTP, password, or CVV.
             </span>
           </div>
 
@@ -238,7 +229,7 @@ export default function ChatWidget({ customerId = 'retail-001' }) {
                   className={`chat-bubble-row ${isAssistant ? 'assistant-row' : 'user-row'}`}
                 >
                   {isAssistant && (
-                    <div className="bubble-avatar-assistant" title="Harborline AI">
+                    <div className="bubble-avatar-assistant" title="FinServe AI">
                       <ShieldCheck size={16} />
                     </div>
                   )}
@@ -258,7 +249,7 @@ export default function ChatWidget({ customerId = 'retail-001' }) {
                             <div key={cIdx} className="citation-item">
                               <span className="citation-badge">{c.type || 'Notice'}</span>
                               <div className="citation-text">
-                                <span className="citation-title">{c.title}</span>
+                                {c.url ? <a className="citation-title" href={c.url} target="_blank" rel="noreferrer">{c.title}</a> : <span className="citation-title">{c.title}</span>}
                                 {c.details && <span className="citation-details">{c.details}</span>}
                               </div>
                             </div>
@@ -314,7 +305,7 @@ export default function ChatWidget({ customerId = 'retail-001' }) {
             <input
               ref={inputRef}
               type="text"
-              placeholder="Ask about fees, waiver rules, maintenance..."
+              placeholder="Ask about HDFC Bank information..."
               value={input}
               onChange={(e) => setInput(e.target.value)}
               disabled={loading}
