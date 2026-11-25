@@ -16,6 +16,16 @@ npm --prefix frontend run build
 
 Open [FinServe AI](http://127.0.0.1:8000). On subsequent starts only the last command is needed. On macOS or Linux use `.venv/bin/python`. Node 22.12 or newer is required for the frontend. The Vite development server proxies API requests to port 8000.
 
+## Host an evaluation on Render
+
+The included `render.yaml` builds the React interface and serves it from FastAPI on one free Render web service. Use fictional records for a shared evaluation. Several API routes, including draft history and customer preferences, currently accept requests without a signed-in staff session.
+
+1. Create a free Neon PostgreSQL project for the evaluation. Copy its connection URL, change the prefix from `postgresql://` to `postgresql+psycopg://`, and keep its TLS parameters.
+2. In Render, create a **Blueprint** from this repository. Enter the connection URL as `DATABASE_URL` and set a distinct password for each evaluation role in the prompted secret fields.
+3. After deployment, open the Render service URL, select an evaluation profile and sign in. Create a fictional draft, restart the service and confirm the draft is still in the review history.
+
+PostgreSQL stores workflow data, preferences and approved wording. The disk-backed Memento MCP integration is disabled on this host because the free web service's local disk is temporary. The default setup uses template drafting and direct source retrieval. Gemini and Firecrawl usage is billed or quota-limited separately by each provider.
+
 ## Prepare a communication
 
 1. Open **Source library**. Select an existing notice or register a new one by entering its official URL, product, category and an exact customer-facing passage. Include the conditions and relevant dates. Registration checks the current document and stores the notice in the application database.
