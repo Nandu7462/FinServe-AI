@@ -1,0 +1,29 @@
+[
+  {
+    "id": "premium-bonds-purchases",
+    "title": "Minimum Premium Bonds purchase",
+    "bank": "NS&I",
+    "product": "Premium Bonds",
+    "category": "Product",
+    "url": "https://www.nsandi.com/products/premium-bonds",
+    "statement": "Each investment must be at least £25."
+  },
+  {
+    "id": "premium-bonds-withdrawals",
+    "title": "Premium Bonds withdrawal charges",
+    "bank": "NS&I",
+    "product": "Premium Bonds",
+    "category": "Fee",
+    "url": "https://www.nsandi.com/products/premium-bonds",
+    "statement": "Yes, you can take out money online, by phone or by post with no notice or penalty."
+  },
+  {
+    "id": "customer-support",
+    "title": "Help with general enquiries",
+    "bank": "NS&I",
+    "product": "Customer support",
+    "category": "Service",
+    "url": "https://www.nsandi.com/contact-us",
+    "statement": "Our virtual assistant can help you with general queries 24/7."
+  }
+]

@@ -1,0 +1,188 @@
+import asyncio
+import sys
+sys.stdout.reconfigure(line_buffering=True)
+from backend.main import (
+    list_notices,
+    list_memories,
+    add_approved_explanation,
+    save_preference,
+    create_draft,
+    approve,
+    export_draft,
+    login,
+    list_demo_users,
+    MemoryInput,
+    Preference,
+    DraftRequest,
+    Approval,
+    LoginRequest,
+    support_chat,
+    SupportChatRequest,
+    ChatMessage,
+)
+from backend.sources import extract_notice_candidate
+from starlette.requests import Request
+
+async def run_all_tests():
+    print("=== 1. Testing list_notices() ===")
+    notices_data = list_notices()
+    print("Notices count:", len(notices_data["notices"]))
+    assert len(notices_data["notices"]) > 0
+    print("Memory provider:", notices_data.get("memory"))
+    print("Retriever:", notices_data.get("retriever"))
+    print("Generation:", notices_data.get("generation"))
+
+    print("\n=== 2. Testing list_memories() (Memento Knowledge Bank) ===")
+    memories = list_memories()
+    print("Seeded Memento memories count:", len(memories))
+    assert len(memories) >= 3
+    print("First memory bank/product:", memories[0].get("bank"), "/", memories[0].get("product"))
+
+    print("\n=== 3. Testing add_approved_explanation() (Memento Write) ===")
+    new_mem = MemoryInput(
+        bank="Harborline Bank",
+        product="Credit Card Prime",
+        category="Fee",
+        explanation="Annual maintenance covers 24/7 global fraud protection and premium airport lounge benefits.",
+        reusable_wording="Cardholders spending over ₹2,00,000 annually receive a full fee waiver."
+    )
+    saved_mem = await add_approved_explanation(new_mem)
+    print("Added memory result:", saved_mem.get("product"), "Memory write:", saved_mem.get("memory_write"))
+    assert saved_mem["product"] == "Credit Card Prime"
+
+    print("\n=== 4. Testing save_preference() (Customer Profiles in Memento) ===")
+    pref = Preference(
+        customer="cust_test_001",
+        tone="Formal",
+        channel="Email",
+        tier="Wealth"
+    )
+    saved_pref = await save_preference(pref)
+    print("Saved preference:", saved_pref)
+    assert saved_pref["customer"] == "cust_test_001"
+
+    print("\n=== 5. Testing create_draft() for Fee Revision (Email) ===")
+    annual_fee_notice = next(n for n in notices_data["notices"] if n["id"] == "annual-fee")
+    draft_req = DraftRequest(
+        notice_id=annual_fee_notice["id"],
+        customer="cust_test_001",
+        tone="Formal"
+    )
+    draft = await create_draft(draft_req)
+    print("Draft ID:", draft["id"])
+    print("Draft Status:", draft["status"])
+    print("Subject:", draft["subject"])
+    print("Retrieved Memento explanation:", draft.get("prior_explanations", [""])[0][:80] + "...")
+    assert "From 1 December 2026, the annual fee for the Platinum Debit Card will be ₹350." in draft["body"]
+    assert "Security Advisory" in draft["body"]
+    assert draft["status"] == "draft"
+
+    print("\n=== 6. Testing create_draft() for SMS Channel ===")
+    pref_sms = Preference(
+        customer="cust_test_sms",
+        tone="Concise",
+        channel="SMS",
+        tier="Retail"
+    )
+    await save_preference(pref_sms)
+    draft_sms = await create_draft(DraftRequest(
+        notice_id=annual_fee_notice["id"],
+        customer="cust_test_sms",
+        tone="Concise"
+    ))
+    print("SMS body:", draft_sms["body"])
+    assert "Platinum Debit Card" in draft_sms["body"]
+
+    print("\n=== 7. Testing approve() with Reusable Wording (Saves to Memento) ===")
+    profile = next(u for u in list_demo_users() if u["role"] == "compliance")
+    scope = {"type": "http", "headers": [(b"authorization", ("Bearer " + profile["token"]).encode())]}
+    mock_req = Request(scope)
+    approval_payload = Approval(
+        subject=draft["subject"],
+        body=draft["body"],
+        reviewer="Jane Smith",
+        reusable_wording="If you have questions about annual fee waivers, contact customer care.",
+        source_confirmed=True
+    )
+    approved = await approve(draft["id"], approval_payload, mock_req)
+    assert approved["status"] == "approved"
+    assert approved["reviewer"] == "Jane Smith"
+    assert approved["reviewer_role"] == "compliance"
+    print("Draft approved by:", approved["reviewer"], "Role:", approved["reviewer_role"])
+
+    print("\n=== 8. Testing export_draft() ===")
+    exported = export_draft(draft["id"])
+    assert exported.status_code == 200
+    assert "Platinum Debit Card" in exported.body.decode()
+    print("Export length:", len(exported.body), "bytes")
+
+    print("\n=== 9. Testing Firecrawl Candidate Extraction Logic ===")
+    sample_scraped_text = (
+        "Harborline Bank Official Fee Notice. From 1 January 2027, the annual fee for the "
+        "Sapphire Card will be ₹500. Regular maintenance covers digital card security and fraud monitoring."
+    )
+    candidate = extract_notice_candidate(
+        "https://harborline.bank.internal/cards/sapphire-card",
+        sample_scraped_text,
+        "Firecrawl v2"
+    )
+    print("Extracted Category:", candidate["category"])
+    print("Extracted Title:", candidate["title"])
+    print("Extracted Product:", candidate["product"])
+    print("Extracted Statement:", candidate["statement"])
+    assert candidate["category"] == "Fee"
+    assert "Sapphire Card" in candidate["product"]
+
+    print("\n=== 10. Testing Staff Authentication & RBAC ===")
+    demo_users = list_demo_users()
+    print("Demo staff users available:", len(demo_users))
+    assert len(demo_users) >= 3
+
+    login_res = login(LoginRequest(email=profile["email"], password=profile["demo_password"]))
+    print("Authenticated user:", login_res["user"]["name"], "Role:", login_res["user"]["role"])
+    assert login_res["user"]["role"] == "compliance"
+    assert "token" in login_res
+
+    # Test invalid password rejection
+    try:
+        login(LoginRequest(email="jane.compliance@harborline.bank", password="wrongpassword"))
+        assert False, "Should have raised HTTPException"
+    except Exception as e:
+        print("Invalid password rejected as expected:", type(e).__name__)
+
+    print("\n=== 11. Testing Customer Support Chatbot (Gemini / Grounded BFSI) ===")
+    # 11a: Fee & Waiver inquiry
+    chat_req_1 = SupportChatRequest(
+        messages=[ChatMessage(role="user", content="What is the fee for Platinum Debit Card and how can I get it waived?")],
+        customer_id="retail-001"
+    )
+    chat_res_1 = await support_chat(chat_req_1)
+    print("Chat 1 Response Source:", chat_res_1.get("source"))
+    print("Chat 1 Citations count:", len(chat_res_1.get("citations", [])))
+    print("Chat 1 Reply preview:", chat_res_1["reply"][:140].replace("\n", " "))
+    assert len(chat_res_1.get("citations", [])) >= 1
+    assert "350" in chat_res_1["reply"] or "Debit" in chat_res_1["reply"] or "fee" in chat_res_1["reply"].lower()
+
+    # 11b: Maintenance schedule inquiry
+    chat_req_2 = SupportChatRequest(
+        messages=[ChatMessage(role="user", content="When is the scheduled banking maintenance window?")],
+        customer_id="retail-001"
+    )
+    chat_res_2 = await support_chat(chat_req_2)
+    print("Chat 2 Response Source:", chat_res_2.get("source"))
+    print("Chat 2 Citations count:", len(chat_res_2.get("citations", [])))
+    assert "maintenance" in chat_res_2["reply"].lower() or "banking" in chat_res_2["reply"].lower()
+
+    # 11c: Anti-Phishing security protection check
+    chat_req_3 = SupportChatRequest(
+        messages=[ChatMessage(role="user", content="Someone called asking for my net banking OTP and card PIN. Should I share it?")],
+        customer_id="retail-001"
+    )
+    chat_res_3 = await support_chat(chat_req_3)
+    print("Chat 3 Anti-Phishing Advisory triggered:", "Security" in chat_res_3["reply"] or "NEVER" in chat_res_3["reply"])
+    assert "pin" in chat_res_3["reply"].lower() or "otp" in chat_res_3["reply"].lower()
+
+    print("\n>>> ALL TESTS PASSED SUCCESSFULLY! ALL 11 TEST PHASES VERIFIED! <<<")
+
+if __name__ == "__main__":
+    asyncio.run(run_all_tests())

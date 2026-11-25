@@ -1,0 +1,12 @@
+[
+  {
+    "id": "annual-fee",
+    "title": "Debit card annual fee revision",
+    "bank": "Your bank",
+    "product": "Platinum Debit Card",
+    "url": "https://example.com/replace-with-official-notice",
+    "fee": "₹350",
+    "effective_date": "1 December 2026",
+    "evidence": "From 1 December 2026, the annual fee for the Platinum Debit Card will be ₹350."
+  }
+]
