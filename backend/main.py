@@ -1,7 +1,6 @@
 import asyncio
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timezone
-from decimal import Decimal, InvalidOperation
 from hashlib import sha256
 import json
 import os
@@ -10,10 +9,9 @@ import re
 from uuid import uuid4
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Query, Request, Header
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import PlainTextResponse
 from fastapi.staticfiles import StaticFiles
-import httpx
 from pydantic import BaseModel, Field
 from sqlalchemy import JSON, Column, MetaData, String, Table, create_engine, insert, select, update
 from typing import Literal, Optional
@@ -23,30 +21,30 @@ from .sources import check_url, extract_notice_candidate, normalized, retrieve
 
 load_dotenv()
 ROOT = Path(__file__).resolve().parents[1]
-db = create_engine(os.getenv("DATABASE_URL", "sqlite:///finserve.db"))
+db = create_engine(os.getenv("DATABASE_URL", "sqlite:///hdfc-finserve.db"))
 metadata = MetaData()
 
-drafts = Table("drafts", metadata,
+drafts = Table("hdfc_drafts", metadata,
                Column("id", String(36), primary_key=True),
                Column("status", String(20), nullable=False),
                Column("payload", JSON, nullable=False))
 
-preferences = Table("preferences", metadata,
+preferences = Table("hdfc_preferences", metadata,
                     Column("id", String(80), primary_key=True),
                     Column("payload", JSON, nullable=False))
 
-registered_sources = Table("registered_sources", metadata,
+registered_sources = Table("hdfc_registered_sources", metadata,
                             Column("id", String(80), primary_key=True),
                             Column("payload", JSON, nullable=False))
 
-memento_memories = Table("memento_memories", metadata,
+memento_memories = Table("hdfc_memento_memories", metadata,
                          Column("id", String(80), primary_key=True),
                          Column("kind", String(40), nullable=False),
                          Column("tags", JSON, nullable=False),
                          Column("payload", JSON, nullable=False),
                          Column("created_at", String(40), nullable=False))
 
-users = Table("users", metadata,
+users = Table("hdfc_users", metadata,
               Column("id", String(40), primary_key=True),
               Column("email", String(120), unique=True, nullable=False),
               Column("name", String(120), nullable=False),
@@ -63,11 +61,11 @@ class Preference(BaseModel):
     channel: Literal["Email", "SMS", "WhatsApp"] = "Email"
     language: str = Field(default="English", max_length=50)
     tier: Literal["Retail", "Preferred", "Wealth"] = "Retail"
-    bank: str = Field(default="Harborline Bank", max_length=120)
+    bank: Literal["HDFC Bank"] = "HDFC Bank"
 
 
 class MemoryInput(BaseModel):
-    bank: str = Field(min_length=1, max_length=120)
+    bank: Literal["HDFC Bank"]
     product: str = Field(min_length=1, max_length=120)
     category: Literal["Fee", "Product", "Service"]
     explanation: str = Field(min_length=5, max_length=1500)
@@ -84,115 +82,6 @@ class SupportChatRequest(BaseModel):
     customer_id: Optional[str] = None
 
 
-DEFAULT_WORDING = "If you have questions about this update or fee waiver criteria, please contact our customer support team."
-
-DEMO_NOTICE = {
-    "id": "annual-fee", "title": "Debit card annual fee revision", "bank": "Harborline Bank",
-    "product": "Platinum Debit Card", "category": "Fee", "url": None,
-    "fee": "₹350", "effective_date": "1 December 2026",
-    "statement": "From 1 December 2026, the annual fee for the Platinum Debit Card will be ₹350.",
-    "evidence": "From 1 December 2026, the annual fee for the Platinum Debit Card will be ₹350. The previous annual fee was ₹250.",
-    "text": "From 1 December 2026, the annual fee for the Platinum Debit Card will be ₹350. The previous annual fee was ₹250.",
-}
-DEMO_INCOMPLETE = {
-    **DEMO_NOTICE, "id": "missing-date", "title": "Debit card notice with missing date",
-    "effective_date": "", "statement": "The annual fee for the Platinum Debit Card will be ₹350.",
-    "evidence": "The annual fee for the Platinum Debit Card will be ₹350. The effective date will be announced separately.",
-    "text": "The annual fee for the Platinum Debit Card will be ₹350. The effective date will be announced separately.",
-}
-
-SEED_MEMORIES = [
-    {
-        "id": "mem-seed-fee-01",
-        "kind": "explanation",
-        "tags": ["finserve-approved", "fee", "debit card", "harborline bank"],
-        "payload": {
-            "bank": "Harborline Bank",
-            "product": "Platinum Debit Card",
-            "category": "Fee",
-            "explanation": "Annual card fees support 24/7 automated fraud monitoring, enhanced EMV contactless chip security, and emergency replacement coverage worldwide.",
-            "reusable_wording": "If you maintain an average quarterly balance of ₹50,000 or spend ₹1,00,000 annually, your annual fee is automatically waived.",
-        },
-        "created_at": "2026-01-15T10:00:00Z"
-    },
-    {
-        "id": "mem-seed-prod-01",
-        "kind": "explanation",
-        "tags": ["finserve-approved", "product", "savings account", "harborline bank"],
-        "payload": {
-            "bank": "Harborline Bank",
-            "product": "Everyday Savings Account",
-            "category": "Product",
-            "explanation": "Digital statements, net banking, and instant mobile alerts are provided complimentary to support sustainable paperless banking.",
-            "reusable_wording": "You can download up to 5 years of certified historical account statements anytime via the mobile banking app.",
-        },
-        "created_at": "2026-01-20T11:00:00Z"
-    },
-    {
-        "id": "mem-seed-serv-01",
-        "kind": "explanation",
-        "tags": ["finserve-approved", "service", "online banking", "harborline bank"],
-        "payload": {
-            "bank": "Harborline Bank",
-            "product": "Online Banking",
-            "category": "Service",
-            "explanation": "Scheduled infrastructure maintenance occurs during off-peak hours to upgrade database throughput and apply mandatory security patches.",
-            "reusable_wording": "Branch ATMs, UPI merchant payments, and emergency card block services remain fully operational throughout the maintenance window.",
-        },
-        "created_at": "2026-02-01T09:30:00Z"
-    }
-]
-
-
-SEED_PREFERENCES = [
-    {
-        "customer": "cust-rajesh-kumar",
-        "name": "Rajesh Kumar",
-        "language": "Hindi",
-        "channel": "SMS",
-        "tone": "Concise",
-        "tier": "Preferred",
-        "bank": "Harborline Bank",
-    },
-    {
-        "customer": "cust-elena-rodriguez",
-        "name": "Elena Rodriguez",
-        "language": "Spanish",
-        "channel": "Email",
-        "tone": "Friendly",
-        "tier": "Wealth",
-        "bank": "Harborline Bank",
-    },
-    {
-        "customer": "cust-priya-sharma",
-        "name": "Priya Sharma",
-        "language": "English",
-        "channel": "Email",
-        "tone": "Formal",
-        "tier": "Retail",
-        "bank": "Harborline Bank",
-    },
-    {
-        "customer": "cust-jean-dupont",
-        "name": "Jean Dupont",
-        "language": "French",
-        "channel": "Email",
-        "tone": "Formal",
-        "tier": "Preferred",
-        "bank": "Harborline Bank",
-    },
-    {
-        "customer": "cust-marcus-vance",
-        "name": "Marcus Vance",
-        "language": "English",
-        "channel": "SMS",
-        "tone": "Concise",
-        "tier": "Wealth",
-        "bank": "Harborline Bank",
-    },
-]
-
-
 def now():
     return datetime.now(timezone.utc).isoformat()
 
@@ -204,8 +93,8 @@ def hash_password(pwd: str) -> str:
 SEED_USERS = [
     {
         "id": "usr-compliance-01",
-        "email": "jane.compliance@harborline.bank",
-        "name": "Jane Smith",
+        "email": "compliance@finserve.localhost",
+        "name": "Compliance Officer",
         "role": "compliance",
         "department": "Risk & Regulatory Compliance",
         "password_hash": hash_password(os.getenv("FINSERVE_COMPLIANCE_PASSWORD", "")),
@@ -213,8 +102,8 @@ SEED_USERS = [
     },
     {
         "id": "usr-drafter-01",
-        "email": "alex.drafter@harborline.bank",
-        "name": "Alex Morgan",
+        "email": "drafter@finserve.localhost",
+        "name": "Communications Drafter",
         "role": "drafter",
         "department": "Customer Communications",
         "password_hash": hash_password(os.getenv("FINSERVE_DRAFTER_PASSWORD", "")),
@@ -222,8 +111,8 @@ SEED_USERS = [
     },
     {
         "id": "usr-admin-01",
-        "email": "admin@harborline.bank",
-        "name": "Sarah Jenkins",
+        "email": "admin@finserve.localhost",
+        "name": "Workspace Administrator",
         "role": "admin",
         "department": "Operations & Governance",
         "password_hash": hash_password(os.getenv("FINSERVE_ADMIN_PASSWORD", "")),
@@ -232,11 +121,7 @@ SEED_USERS = [
 ]
 
 SEED_USERS = [user for user in SEED_USERS if os.getenv(f"FINSERVE_{user['role'].upper()}_PASSWORD")]
-DEMO_TOKENS = {user["role"]: uuid4().hex for user in SEED_USERS}
-SESSIONS = {
-    DEMO_TOKENS[user["role"]]: {key: value for key, value in user.items() if key != "password_hash"}
-    for user in SEED_USERS
-}
+SESSIONS = {}
 
 
 def get_current_user(request: Request) -> Optional[dict]:
@@ -256,10 +141,6 @@ def anti_phishing_notice(bank: str) -> str:
             f"or One-Time Password (OTP) via phone, email, or SMS. Please do not share sensitive credentials with anyone.")
 
 
-def demo_mode():
-    return os.getenv("FINSERVE_MODE", "live") == "demo"
-
-
 def catalog():
     config = Path(os.getenv("LIVE_NOTICES_FILE") or ROOT / "notices.json")
     if config.exists():
@@ -271,30 +152,18 @@ def catalog():
 
 
 def notices():
-    base_demo = [
-        DEMO_NOTICE,
-        DEMO_INCOMPLETE,
-        {
-            **DEMO_NOTICE, "id": "product", "title": "Savings account product information",
-            "product": "Everyday Savings Account", "category": "Product", "fee": "", "effective_date": "",
-            "statement": "The Everyday Savings Account includes online banking and a monthly account statement.",
-            "evidence": "The Everyday Savings Account includes online banking and a monthly account statement.",
-            "text": "The Everyday Savings Account includes online banking and a monthly account statement."
-        },
-        {
-            **DEMO_NOTICE, "id": "service", "title": "Scheduled online banking maintenance",
-            "product": "Online Banking", "category": "Service", "fee": "", "effective_date": "1 December 2026",
-            "statement": "Online Banking will be unavailable from midnight to 2 am IST on 1 December 2026 for scheduled maintenance.",
-            "evidence": "Online Banking will be unavailable from midnight to 2 am IST on 1 December 2026 for scheduled maintenance.",
-            "text": "Online Banking will be unavailable from midnight to 2 am IST on 1 December 2026 for scheduled maintenance."
-        }
-    ]
-    configured = catalog()
     with db.connect() as connection:
         added = connection.execute(select(registered_sources.c.payload)).scalars().all()
-    
-    # Return combination of configured, dynamically registered, and demo notices
-    return configured + list(added) + base_demo
+    official = []
+    for notice in [*catalog(), *added]:
+        if notice.get("bank") != "HDFC Bank":
+            continue
+        try:
+            check_url(notice.get("url") or "")
+        except ValueError:
+            continue
+        official.append(notice)
+    return official
 
 
 async def query_memento_explanations(bank: str, product: str, category: str):
@@ -307,7 +176,7 @@ async def query_memento_explanations(bank: str, product: str, category: str):
         try:
             recalled = await asyncio.wait_for(memento("search_memory", {"text": search_query, "limit": 3}), 3)
             for entry in memory_entries(recalled):
-                if entry and isinstance(entry, str):
+                if isinstance(entry, str) and entry.startswith(f"FinServe HDFC workspace approval [{bank} / {product}]"):
                     results.append(entry)
         except Exception:
             pass
@@ -321,6 +190,8 @@ async def query_memento_explanations(bank: str, product: str, category: str):
     keywords = {w.lower() for w in re.findall(r"\w+", search_query) if len(w) > 2}
     scored = []
     for row in rows:
+        if row.get("product") != product or row.get("bank") != bank:
+            continue
         text = f"{row.get('bank', '')} {row.get('product', '')} {row.get('category', '')} {row.get('explanation', '')} {row.get('reusable_wording', '')}".lower()
         score = sum(1 for kw in keywords if kw in text)
         scored.append((score, row))
@@ -367,7 +238,7 @@ async def record_memento_memory(kind: str, payload: dict, tags: list):
                 )
             else:
                 mcp_kind = {"type": "fact"}
-                content = f"FinServe approved explanation [{payload.get('bank')} / {payload.get('product')}]: {payload.get('explanation', '')} Reusable: {payload.get('reusable_wording', '')}"
+                content = f"FinServe HDFC workspace approval [{payload.get('bank')} / {payload.get('product')}]: {payload.get('explanation', '')} Reusable: {payload.get('reusable_wording', '')}"
             await asyncio.wait_for(
                 memento("write_memory", {
                     "kind": mcp_kind,
@@ -389,29 +260,16 @@ with db.connect() as conn:
     from sqlalchemy.dialects.sqlite import insert as sqlite_insert
     from sqlalchemy.dialects.postgresql import insert as postgres_insert
     stmt_insert = postgres_insert if db.dialect.name == "postgresql" else sqlite_insert
-    for seed in SEED_MEMORIES:
-        conn.execute(stmt_insert(memento_memories).values(**seed).on_conflict_do_nothing(index_elements=["id"]))
     for user in SEED_USERS:
         conn.execute(stmt_insert(users).values(**user).on_conflict_do_nothing(index_elements=["id"]))
-    for pref in SEED_PREFERENCES:
-        conn.execute(stmt_insert(preferences).values(id=pref["customer"], payload=pref).on_conflict_do_update(
-            index_elements=["id"], set_={"payload": pref}
-        ))
-        pref_mem = {
-            "id": f"mem-pref-{pref['customer']}",
-            "kind": "preference",
-            "tags": ["finserve-preference", pref["customer"], pref["language"].lower(), pref["channel"].lower()],
-            "payload": pref,
-            "created_at": "2026-02-10T08:00:00Z"
-        }
-        conn.execute(stmt_insert(memento_memories).values(**pref_mem).on_conflict_do_update(
-            index_elements=["id"], set_={"payload": pref_mem["payload"]}
-        ))
     conn.commit()
 
 
 @asynccontextmanager
 async def lifespan(app):
+    from .load_drafts import migrate_draft_labels
+    with db.begin() as connection:
+        migrate_draft_labels(connection)
     yield
 
 
@@ -441,11 +299,11 @@ class LoginRequest(BaseModel):
 
 class ScrapeRequest(BaseModel):
     url: str = Field(min_length=1, max_length=2000)
-    bank: Optional[str] = None
+    bank: Optional[Literal["HDFC Bank"]] = None
 
 
 class SourceRequest(BaseModel):
-    bank: str = Field(min_length=1, max_length=120)
+    bank: Literal["HDFC Bank"]
     title: str = Field(min_length=1, max_length=160)
     product: str = Field(min_length=1, max_length=120)
     category: Literal["Product", "Fee", "Service"]
@@ -487,7 +345,7 @@ def get_me(request: Request):
 
 @app.get("/api/auth/users")
 def list_demo_users():
-    """Returns available staff profiles for 1-click quick-login during evaluation."""
+    """List the display details of configured evaluation profiles."""
     return [
         {
             "id": u["id"],
@@ -496,8 +354,6 @@ def list_demo_users():
             "role": u["role"],
             "department": u["department"],
             "avatar_color": u["avatar_color"],
-            "demo_password": os.environ[f"FINSERVE_{u['role'].upper()}_PASSWORD"],
-            "token": DEMO_TOKENS[u["role"]]
         }
         for u in SEED_USERS
     ]
@@ -534,28 +390,27 @@ def system_overview(request: Request):
     approved_count = sum(1 for d in all_drafts if d.get("status") == "approved")
     pending_count = drafts_count
     high_risk_count = sum(1 for d in all_drafts if (d.get("warnings") and len(d.get("warnings")) > 0) or d.get("status") == "blocked")
-    outdated_count = sum(1 for m in all_memories if m.get("created_at", "") < "2026-02-01") or 1
+    outdated_count = sum(1 for m in all_memories if m["payload"].get("review_due", "9999") < date.today().isoformat())
 
-    source_errors_count = sum(1 for n in all_notices if not n.get("effective_date") or not n.get("fee"))
+    source_errors_count = sum(1 for n in all_notices if not n.get("statement") or not n.get("url"))
     active_users_count = len(all_users)
 
     return {
         "integrations": {
             "firecrawl": {
                 "name": "Firecrawl v2 Web Scraper",
-                "status": "connected" if os.getenv("FIRECRAWL_API_KEY") else "local_fallback",
-                "description": "Scrapes official public product information and fee schedules.",
-                "latency": "120ms"
+                "status": "configured" if os.getenv("FIRECRAWL_API_KEY") else "local_fallback",
+                "description": "Scrapes official public product information and fee schedules."
             },
             "memento": {
                 "name": "Memento MCP Knowledge Engine",
-                "status": "connected" if os.getenv("MEMENTO_ENABLED") == "1" else "sqlite_store",
+                "status": "configured" if os.getenv("MEMENTO_ENABLED") == "1" else "database_store",
                 "description": "Stores previously approved explanations and customer communication preferences.",
-                "db": os.getenv("MEMENTO_DB", "finserve-memory.db")
+                "db": os.getenv("MEMENTO_DB", "hdfc-memory.db")
             },
             "gemini": {
-                "name": "Google Gemini 3.8 Flash",
-                "status": "connected" if os.getenv("GEMINI_API_KEY") else "offline_template",
+                "name": "Google Gemini",
+                "status": "configured" if os.getenv("GEMINI_API_KEY") else "offline_template",
                 "model": os.getenv("GEMINI_MODEL") or "gemini-3.8-flash",
                 "description": "Drafts compliant, clear communications in customer preferred languages."
             },
@@ -574,7 +429,7 @@ def system_overview(request: Request):
             "outdated": outdated_count,
             "active_users": active_users_count,
             "source_errors": source_errors_count,
-            "connection_status": "Healthy (4/4 Online)"
+            "connection_status": "Database connected"
         },
         "users": [
             {
@@ -592,7 +447,7 @@ def system_overview(request: Request):
                 "id": d.get("id"),
                 "action": "Draft Approved" if d.get("status") == "approved" else "Draft Rejected" if d.get("status") == "rejected" else "Draft Generated",
                 "target": d.get("subject") or d.get("source", {}).get("title") or "Notice Draft",
-                "actor": d.get("reviewer") or "Alex Morgan (Communications Drafter)",
+                "actor": d.get("reviewer") or "Unrecorded",
                 "actor_role": d.get("reviewer_role") or "drafter",
                 "timestamp": d.get("approved_at") or d.get("reviewed_at") or d.get("created_at"),
                 "details": f"Channel: {d.get('channel', 'Email')} · Language: {d.get('language', 'English')} · Status: {d.get('status')}"
@@ -628,7 +483,7 @@ class LintRequest(BaseModel):
     subject: str = Field(default="", max_length=1000)
     body: str = Field(min_length=1, max_length=25000)
     facts: Optional[dict] = Field(default_factory=dict)
-    bank: str = Field(default="Harborline Bank", max_length=120)
+    bank: Literal["HDFC Bank"] = "HDFC Bank"
     language: str = Field(default="English", max_length=50)
 
 
@@ -725,7 +580,7 @@ def lint_communication(req: LintRequest):
 def list_notices():
     all_notices = notices()
     return {
-        "demo": demo_mode(),
+        "demo": False,
         "memory": "Memento MCP" if os.getenv("MEMENTO_ENABLED") == "1" else "Memento Memory Store",
         "retriever": "Firecrawl v2" if os.getenv("FIRECRAWL_API_KEY") else "Official website scraper",
         "generation": "Gemini 2.5" if os.getenv("GEMINI_API_KEY") else "BFSI Template Engine",
@@ -893,13 +748,10 @@ async def create_draft(request: DraftRequest):
 
     # Step 1: Retrieve official document text via Firecrawl or direct retriever
     warnings = []
-    if notice.get("url"):
-        try:
-            text, retriever = await retrieve(notice["url"])
-        except Exception as error:
-            raise HTTPException(502, f"Could not retrieve source: {error}") from error
-    else:
-        text, retriever = notice.get("text", ""), "Demonstration"
+    try:
+        text, retriever = await retrieve(notice["url"])
+    except Exception as error:
+        raise HTTPException(502, f"Could not retrieve source: {error}") from error
 
     facts = {field: notice.get(field, "") for field in ("product", "fee", "effective_date")}
     normalized_doc = normalized(text)
@@ -918,7 +770,7 @@ async def create_draft(request: DraftRequest):
     memento_matches = await query_memento_explanations(
         notice.get("bank", ""), notice.get("product", ""), notice.get("category", "Fee")
     )
-    prior_explanation = memento_matches[0] if memento_matches else DEFAULT_WORDING
+    prior_explanation = memento_matches[0] if memento_matches else ""
     memory_label = "Memento MCP" if os.getenv("MEMENTO_ENABLED") == "1" else "Memento Memory Store"
 
     item = {
@@ -951,7 +803,7 @@ async def create_draft(request: DraftRequest):
             context_text=text[:1500],
             channel=effective_channel,
             language=effective_language,
-            bank=notice.get("bank", "Harborline Bank")
+            bank=notice.get("bank", "HDFC Bank")
         )
         item["subject"] = generated.subject
         
@@ -966,22 +818,22 @@ async def create_draft(request: DraftRequest):
         greeting = greetings.get(effective_language, "Dear Customer,")
 
         security_notices = {
-            "Hindi": f"सुरक्षा परामर्श: {notice.get('bank', 'Harborline Bank')} आपसे कभी भी फोन, ईमेल या एसएमएस के माध्यम से आपका पिन, सीवीवी, नेट बैंकिंग पासवर्ड या वन-टाइम पासवर्ड (ओटीपी) नहीं मांगेगा।",
-            "Spanish": f"Aviso de Seguridad: {notice.get('bank', 'Harborline Bank')} NUNCA le solicitará su PIN, CVV, contraseña o código OTP por teléfono, correo electrónico o SMS.",
-            "French": f"Avis de Sécurité: {notice.get('bank', 'Harborline Bank')} ne vous demandera JAMAIS votre code PIN, CVV, mot de passe ou code OTP par téléphone, e-mail ou SMS.",
-            "German": f"Sicherheitshinweis: Die {notice.get('bank', 'Harborline Bank')} wird Sie NIEMALS nach Ihrer PIN, CVV, Ihrem Online-Banking-Passwort oder OTP fragen.",
-            "English": anti_phishing_notice(notice.get('bank', 'Harborline Bank'))
+            "Hindi": f"सुरक्षा परामर्श: {notice.get('bank', 'HDFC Bank')} आपसे कभी भी फोन, ईमेल या एसएमएस के माध्यम से आपका पिन, सीवीवी, नेट बैंकिंग पासवर्ड या वन-टाइम पासवर्ड (ओटीपी) नहीं मांगेगा।",
+            "Spanish": f"Aviso de Seguridad: {notice.get('bank', 'HDFC Bank')} NUNCA le solicitará su PIN, CVV, contraseña o código OTP por teléfono, correo electrónico o SMS.",
+            "French": f"Avis de Sécurité: {notice.get('bank', 'HDFC Bank')} ne vous demandera JAMAIS votre code PIN, CVV, mot de passe ou code OTP par téléphone, e-mail ou SMS.",
+            "German": f"Sicherheitshinweis: Die {notice.get('bank', 'HDFC Bank')} wird Sie NIEMALS nach Ihrer PIN, CVV, Ihrem Online-Banking-Passwort oder OTP fragen.",
+            "English": anti_phishing_notice(notice.get('bank', 'HDFC Bank'))
         }
-        security_text = security_notices.get(effective_language, anti_phishing_notice(notice.get('bank', 'Harborline Bank')))
+        security_text = security_notices.get(effective_language, anti_phishing_notice(notice.get('bank', 'HDFC Bank')))
 
         closings_team = {
-            "Hindi": f"सादर,\n{notice.get('bank', 'Harborline Bank')} ग्राहक संचार टीम",
-            "Spanish": f"Atentamente,\nEquipo de Comunicaciones de {notice.get('bank', 'Harborline Bank')}",
-            "French": f"Cordialement,\nÉquipe de Communication Client {notice.get('bank', 'Harborline Bank')}",
-            "German": f"Mit freundlichen Grüßen,\nIhr {notice.get('bank', 'Harborline Bank')} Kundenteam",
-            "English": f"Sincerely,\n{notice.get('bank', 'Harborline Bank')} Customer Communications Team"
+            "Hindi": f"सादर,\n{notice.get('bank', 'HDFC Bank')} ग्राहक संचार टीम",
+            "Spanish": f"Atentamente,\nEquipo de Comunicaciones de {notice.get('bank', 'HDFC Bank')}",
+            "French": f"Cordialement,\nÉquipe de Communication Client {notice.get('bank', 'HDFC Bank')}",
+            "German": f"Mit freundlichen Grüßen,\nIhr {notice.get('bank', 'HDFC Bank')} Kundenteam",
+            "English": f"Sincerely,\n{notice.get('bank', 'HDFC Bank')} Customer Communications Team"
         }
-        closing_team_text = closings_team.get(effective_language, f"Sincerely,\n{notice.get('bank', 'Harborline Bank')} Customer Communications Team")
+        closing_team_text = closings_team.get(effective_language, f"Sincerely,\n{notice.get('bank', 'HDFC Bank')} Customer Communications Team")
 
         # Email format with compliance disclaimers and structured layout
         item["body"] = (
@@ -996,13 +848,13 @@ async def create_draft(request: DraftRequest):
         
         # SMS format
         item["sms_body"] = generated.sms_text or (
-            f"{notice.get('bank', 'Harborline Bank')} Alert: {canonical_statement} {generated.closing}"
+            f"{notice.get('bank', 'HDFC Bank')} Alert: {canonical_statement} {generated.closing}"
         )
 
         # WhatsApp Business Interactive Format
-        bank_name = notice.get('bank', 'Harborline Bank')
+        bank_name = notice.get('bank', 'HDFC Bank')
         item["whatsapp_body"] = (
-            f"*{bank_name.upper()} OFFICIAL NOTICE* 🏛️\n\n"
+            f"*{bank_name.upper()} | DRAFT* 🏛️\n\n"
             f"*{greeting}*\n\n"
             f"{generated.introduction}\n\n"
             f"📌 *Key Revision:*\n_{canonical_statement}_\n\n"
@@ -1012,9 +864,7 @@ async def create_draft(request: DraftRequest):
             f"— {bank_name} Customer Care"
         )
         item["whatsapp_buttons"] = [
-            {"id": "btn_schedule", "title": "📄 View Fee Schedule"},
-            {"id": "btn_waiver", "title": "💡 Waiver Criteria"},
-            {"id": "btn_support", "title": "📞 Contact Support"}
+            {"id": "btn_source", "title": "View source", "url": notice["url"]},
         ]
         
         # If preferred channel is SMS or WhatsApp, set main body
@@ -1028,8 +878,15 @@ async def create_draft(request: DraftRequest):
     return item
 
 
+def current_draft_id(draft_id):
+    if draft_id.startswith("sample-"):
+        return "draft-" + draft_id.removeprefix("sample-")
+    return draft_id
+
+
 @app.post("/api/drafts/{draft_id}/approve")
 async def approve(draft_id: str, approval: Approval, request: Request):
+    draft_id = current_draft_id(draft_id)
     user = get_current_user(request)
     subject, body, reviewer, wording = (
         value.strip() for value in (approval.subject, approval.body, approval.reviewer, approval.reusable_wording)
@@ -1092,6 +949,7 @@ async def approve(draft_id: str, approval: Approval, request: Request):
 
 @app.post("/api/drafts/{draft_id}/reject")
 def reject(draft_id: str, request_data: dict, request: Request):
+    draft_id = current_draft_id(draft_id)
     user = get_current_user(request)
     reviewer = (request_data.get("reviewer") or (user["name"] if user else "")).strip()
     reason = (request_data.get("reason") or "").strip()
@@ -1117,63 +975,14 @@ def reject(draft_id: str, request_data: dict, request: Request):
     return item
 
 
-@app.get("/api/drafts/{draft_id}/reference-fx")
-async def reference_fx(draft_id: str, currency: Literal["USD", "EUR", "GBP"]):
-    with db.connect() as connection:
-        item = connection.execute(select(drafts.c.payload).where(drafts.c.id == draft_id)).scalar_one_or_none()
-    if not item:
-        raise HTTPException(404, "Draft not found.")
-    fee_str = item["facts"].get("fee", "")
-    fee = re.fullmatch(r"(?:₹|INR\s+)\s*([0-9]+(?:,[0-9]{3})*(?:\.[0-9]{1,2})?)", fee_str)
-    if item["status"] == "blocked" or not fee:
-        raise HTTPException(422, "A source-backed INR fee is required for an estimate.")
-    try:
-        async with httpx.AsyncClient(timeout=8) as client:
-            response = await client.get(f"https://api.frankfurter.dev/v2/rate/INR/{currency}")
-            response.raise_for_status()
-        quote = response.json()
-        if quote["base"] != "INR" or quote["quote"] != currency:
-            raise ValueError("Unexpected currency pair.")
-        rate = Decimal(str(quote["rate"]))
-        if not rate.is_finite() or rate <= 0:
-            raise ValueError("Invalid rate.")
-        amount = Decimal(fee[1].replace(",", "")) * rate
-        return {
-            "currency": currency,
-            "amount": f"{amount:.2f}",
-            "date": date.fromisoformat(quote["date"]).isoformat(),
-            "source": "Frankfurter"
-        }
-    except Exception as error:
-        raise HTTPException(502, f"Reference rates are unavailable: {error}") from error
-
-
 @app.post("/api/support/chat")
 async def support_chat(req: SupportChatRequest):
-    # Retrieve all active notices (Firecrawl / demo notices)
     active_notices = notices()
-    # Retrieve all approved explanations & policies from Memento knowledge table
     with db.connect() as connection:
-        rows = connection.execute(select(memento_memories)).fetchall()
-        mem_list = [
-            {
-                "id": r.id,
-                "kind": r.kind,
-                "tags": r.tags,
-                "payload": r.payload,
-                "created_at": r.created_at
-            }
-            for r in rows
-        ]
-
-    bank = "Harborline Bank"
-    if req.customer_id:
-        with db.connect() as connection:
-            pref = connection.execute(
-                select(preferences.c.payload).where(preferences.c.id == req.customer_id)
-            ).scalar_one_or_none()
-            if pref and pref.get("bank"):
-                bank = pref.get("bank")
+        mem_list = connection.execute(
+            select(memento_memories).where(memento_memories.c.kind == "explanation")
+        ).mappings().all()
+    bank = "HDFC Bank"
 
     messages_data = [m.model_dump() for m in req.messages]
     result = await customer_support_chat(
@@ -1187,6 +996,7 @@ async def support_chat(req: SupportChatRequest):
 
 @app.get("/api/drafts/{draft_id}/export", response_class=PlainTextResponse)
 def export_draft(draft_id: str):
+    draft_id = current_draft_id(draft_id)
     with db.connect() as connection:
         item = connection.execute(select(drafts.c.payload).where(drafts.c.id == draft_id)).scalar_one_or_none()
     if not item:
@@ -1195,6 +1005,8 @@ def export_draft(draft_id: str):
         raise HTTPException(409, "Approve this communication before downloading it.")
     sms = (item.get("preference") or {}).get("channel") == "SMS" or item.get("channel") == "SMS"
     content = item["body"] if sms else f"Subject: {item['subject']}\n\n{item['body']}"
+    if item.get("brief"):
+        content = f"Source: {item['source']['url']}\n\n{content}"
     return PlainTextResponse(content, headers={
         "Content-Disposition": f'attachment; filename="finserve-{draft_id}.txt"',
         "Cache-Control": "no-store",

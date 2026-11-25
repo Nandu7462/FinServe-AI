@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: finserve-ai
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt && npm --prefix frontend ci --include=dev && npm --prefix frontend run build
+    startCommand: python -m uvicorn backend.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+      - key: DATABASE_URL
+        sync: false
+      - key: FINSERVE_ADMIN_PASSWORD
+        sync: false
+      - key: FINSERVE_COMPLIANCE_PASSWORD
+        sync: false
+      - key: FINSERVE_DRAFTER_PASSWORD
+        sync: false
+      - key: MEMENTO_ENABLED
+        value: "0"

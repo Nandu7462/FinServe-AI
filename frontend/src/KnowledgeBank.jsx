@@ -14,7 +14,7 @@ export default function KnowledgeBank({user, mode}) {
   const [message, setMessage] = useState('')
 
   // Add Memory Form state
-  const [bank, setBank] = useState('Harborline Bank')
+  const bank = 'HDFC Bank'
   const [product, setProduct] = useState('')
   const [category, setCategory] = useState('Fee')
   const [explanation, setExplanation] = useState('')
@@ -102,7 +102,7 @@ export default function KnowledgeBank({user, mode}) {
               type="text"
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Search Memento memories (e.g. Platinum, fee, waiver)..."
+              placeholder="Search Memento memories (e.g. product, service, wording)..."
               style={{paddingLeft:'36px'}}
             />
             <Search size={16} style={{position:'absolute', left:'12px', top:'50%', transform:'translateY(-50%)', color:'#62677c'}}/>
@@ -222,7 +222,7 @@ export default function KnowledgeBank({user, mode}) {
           <form onSubmit={handleAddExplanation} className="editor">
             <div className="fields">
               <label>Institution
-                <input value={bank} onChange={e => setBank(e.target.value)} required maxLength={120}/>
+                <input value={bank} readOnly required maxLength={120}/>
               </label>
               <label>Category
                 <select value={category} onChange={e => setCategory(e.target.value)}>
@@ -237,7 +237,7 @@ export default function KnowledgeBank({user, mode}) {
               <input
                 value={product}
                 onChange={e => setProduct(e.target.value)}
-                placeholder="e.g. Platinum Debit Card, Everyday Savings"
+                placeholder="Product named in the source"
                 required
                 maxLength={120}
               />
@@ -259,7 +259,7 @@ export default function KnowledgeBank({user, mode}) {
               <textarea
                 value={reusableWording}
                 onChange={e => setReusableWording(e.target.value)}
-                placeholder="e.g. Annual fee is waived if spend exceeds ₹1,00,000 annually..."
+                placeholder="Enter previously approved wording"
                 rows={2}
                 maxLength={400}
               />
@@ -281,7 +281,7 @@ export default function KnowledgeBank({user, mode}) {
           </div>
           <div className="panel-note" style={{padding:'16px', background:'#fbf9ee', border:'1px solid #f2e2b6', borderRadius:'10px', color:'#785210', lineHeight:1.6}}>
             <Lock size={16} style={{verticalAlign:'middle', marginRight:'6px'}}/>
-            <strong>Read-Only Approved Library:</strong> As a <strong>Communications Drafter (Alex Morgan)</strong>, you can view and reference approved explanations and customer preferences to guide drafts. Modifying or adding compliance rules requires Jane Smith's authorization.
+            <strong>Read-Only Approved Library:</strong> As a <strong>Communications Drafter</strong>, you can view and reference approved explanations and customer preferences to guide drafts. Modifying or adding compliance rules requires a compliance officer’s authorization.
           </div>
           <div style={{marginTop:'16px', padding:'12px', background:'#f8f9fc', borderRadius:'8px', border:'1px solid #e2e8f0', fontSize:'12.5px', color:'#475569'}}>
             <strong>Segregation of Duties Rule:</strong><br/>

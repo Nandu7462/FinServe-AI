@@ -1,12 +1,92 @@
 [
   {
-    "id": "annual-fee",
-    "title": "Debit card annual fee revision",
-    "bank": "Your bank",
-    "product": "Platinum Debit Card",
-    "url": "https://example.com/replace-with-official-notice",
-    "fee": "₹350",
-    "effective_date": "1 December 2026",
-    "evidence": "From 1 December 2026, the annual fee for the Platinum Debit Card will be ₹350."
+    "id": "savings-interest",
+    "title": "How savings interest is calculated",
+    "bank": "HDFC Bank",
+    "product": "Savings Account",
+    "category": "Product",
+    "url": "https://www.hdfc.bank.in/savings-account/savings-interest-rate",
+    "statement": "Savings Bank Account interest will be calculated on the daily balances maintained in your account."
+  },
+  {
+    "id": "online-neft",
+    "title": "Online NEFT charges and eligibility",
+    "bank": "HDFC Bank",
+    "product": "NEFT",
+    "category": "Fee",
+    "url": "https://www.hdfc.bank.in/neft",
+    "statement": "NEFT transactions done online are free (w.e.f. 1st Nov 2017) (Applicable to all retail savings/Salary/NR/Managed/Non-managed individual customers)"
+  },
+  {
+    "id": "stop-cheque",
+    "title": "Stop payment on a cheque",
+    "bank": "HDFC Bank",
+    "product": "Cheque services",
+    "category": "Service",
+    "url": "https://www.hdfc.bank.in/useful-links/citizens-charter",
+    "statement": "The Bank will accept Stop Payment Instruction from the depositors in respect of cheques issued by them."
+  },
+  {
+    "id": "security-credentials",
+    "title": "Protecting OTP, PIN, CVV and passwords",
+    "bank": "HDFC Bank",
+    "product": "Digital banking security",
+    "category": "Service",
+    "url": "https://www.hdfc.bank.in/blogs/digital-banking-1/nine-essential-tips-to-protect-your-financial-identity",
+    "statement": "Never share OTP, PIN, CVV, passwords or card details."
+  },
+  {
+    "id": "rd-nre-tenure",
+    "title": "Minimum tenure to earn interest on an NRE recurring deposit",
+    "bank": "HDFC Bank",
+    "product": "NRE Recurring Deposit",
+    "category": "Product",
+    "url": "https://www.hdfc.bank.in/recurring-deposit",
+    "statement": "The minimum tenure for earning interest on an NRE Recurring Deposit is 1 year."
+  },
+  {
+    "id": "positive-pay-cts",
+    "title": "Which cheques qualify for Positive Pay",
+    "bank": "HDFC Bank",
+    "product": "Positive Pay",
+    "category": "Service",
+    "url": "https://www.hdfc.bank.in/payments/services/positive-pay-for-cheque-truncation-system",
+    "statement": "This service is applicable only for cheque received under CTS clearing of Rs. 50,000/- and above."
+  },
+  {
+    "id": "credit-card-controls",
+    "title": "Credit card usage controls in MyCards",
+    "bank": "HDFC Bank",
+    "product": "Credit Card Controls",
+    "category": "Service",
+    "url": "https://www.hdfc.bank.in/credit-cards/services/set-card-control",
+    "statement": "Enable Online/Contactless/International usage mode and set usage limits"
+  },
+  {
+    "id": "upi-receive",
+    "title": "Receiving money and UPI PIN safety",
+    "bank": "HDFC Bank",
+    "product": "UPI",
+    "category": "Service",
+    "url": "https://www.hdfc.bank.in/need-help/mobile-banking-faqs",
+    "statement": "UPI PIN is only required when you are sending money to someone. It is NEVER required when you receive money from someone."
+  },
+  {
+    "id": "rtgs-minimum",
+    "title": "Minimum RTGS transfer amount",
+    "bank": "HDFC Bank",
+    "product": "RTGS",
+    "category": "Product",
+    "url": "https://www.hdfc.bank.in/rtgs",
+    "statement": "The RTGS (Real Time Gross Settlement) system is designed for high-value transactions, with a minimum transfer amount of ₹2 lakh."
+  },
+  {
+    "id": "fixed-deposit-estimate",
+    "title": "What the fixed deposit calculator estimate excludes",
+    "bank": "HDFC Bank",
+    "product": "Fixed Deposit Calculator",
+    "category": "Product",
+    "url": "https://www.hdfc.bank.in/fixed-deposit/fd-calculator",
+    "statement": "This is an approximate maturity amount. The final value may differ. Also, it does not include TDS deductions."
   }
 ]

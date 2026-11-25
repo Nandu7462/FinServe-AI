@@ -12,12 +12,15 @@ from pypdf.errors import PyPdfError
 from .providers import fetch_source
 
 
+OFFICIAL_HOSTS = {"hdfc.bank.in", "www.hdfc.bank.in", "hdfcbank.com", "www.hdfcbank.com"}
+
+
 def check_url(url):
     parsed = urlsplit(url)
-    if (parsed.scheme != "https" or not parsed.hostname or parsed.username is not None
+    if (parsed.scheme != "https" or parsed.hostname not in OFFICIAL_HOSTS or parsed.username is not None
             or parsed.password is not None or parsed.port not in (None, 443)
             or parsed.fragment or "\\" in url or any(c.isspace() for c in url)):
-        raise ValueError("Use the final public HTTPS address of the official document.")
+        raise ValueError("Use the final public HTTPS address on HDFC Bank’s official website.")
     return parsed.hostname
 
 
@@ -52,7 +55,7 @@ async def retrieve(url):
             pass
 
     async with httpx.AsyncClient(timeout=30) as client:
-        async with client.stream("GET", url, follow_redirects=True) as response:
+        async with client.stream("GET", url, follow_redirects=False) as response:
             response.raise_for_status()
             data = bytearray()
             async for chunk in response.aiter_bytes():
@@ -72,31 +75,18 @@ def normalized(text):
 
 def extract_notice_candidate(url: str, text: str, retriever: str):
     parsed = urlsplit(url)
-    hostname = parsed.hostname or ""
-    parts = hostname.replace("www.", "").split(".")
-    domain_name = parts[0].capitalize() if parts else "Financial Institution"
-    
-    # Common bank domain mappings
-    bank_names = {
-        "nsandi": "NS&I",
-        "hdfcbank": "HDFC Bank",
-        "icicibank": "ICICI Bank",
-        "sbi": "State Bank of India",
-        "chase": "Chase Bank",
-        "barclays": "Barclays",
-        "harborline": "Harborline Bank",
-    }
-    bank = bank_names.get(parts[0].lower(), domain_name)
-    
+    check_url(url)
+    bank = "HDFC Bank"
+
     # Determine category and key statement
-    sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+", text) if len(s.strip()) > 20]
+    sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+(?!\d)", text) if len(s.strip()) > 20]
     
     category = "Product"
     statement = ""
     title = f"{bank} Customer Notice"
     product = "Financial Service"
 
-    fee_keywords = ["annual fee", "fee", "charge", "penalty", "cost", "commission", "interest rate", "tariff"]
+    fee_keywords = ["are free", "annual fee", "fee", "charge", "penalty", "cost", "commission", "interest rate", "tariff"]
     service_keywords = ["maintenance", "downtime", "unavailable", "schedule", "upgrade", "outage", "system update"]
     product_keywords = ["account", "card", "deposit", "savings", "investment", "bonds", "loan"]
 
@@ -106,7 +96,7 @@ def extract_notice_candidate(url: str, text: str, retriever: str):
         if any(k in s_lower for k in fee_keywords) and any(c in s for c in ["₹", "$", "£", "€", "%", "free", "no fee", "zero"]):
             category = "Fee"
             statement = s[:400]
-            title = f"{bank} Fee Revision Notice"
+            title = f"{bank} Fee Information"
             break
 
     # If no fee passage, check for service maintenance
@@ -116,7 +106,7 @@ def extract_notice_candidate(url: str, text: str, retriever: str):
             if any(k in s_lower for k in service_keywords):
                 category = "Service"
                 statement = s[:400]
-                title = f"{bank} Scheduled Service Update"
+                title = f"{bank} Service Information"
                 break
 
     # If still none, check product info
