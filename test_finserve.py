@@ -1,6 +1,8 @@
 import asyncio
+import os
 import sys
 from uuid import uuid4
+from fastapi import HTTPException
 sys.stdout.reconfigure(line_buffering=True)
 from backend.main import (
     list_notices,
@@ -113,7 +115,8 @@ async def run_all_tests():
 
     print("\n=== 7. Testing approve() with Reusable Wording (Saves to Memento) ===")
     profile = next(u for u in list_demo_users() if u["role"] == "compliance")
-    scope = {"type": "http", "headers": [(b"authorization", ("Bearer " + profile["token"]).encode())]}
+    login_res = login(LoginRequest(email=profile["email"], password=os.environ["FINSERVE_COMPLIANCE_PASSWORD"]))
+    scope = {"type": "http", "headers": [(b"authorization", ("Bearer " + login_res["token"]).encode())]}
     mock_req = Request(scope)
     approval_payload = Approval(
         subject=draft["subject"],
@@ -156,17 +159,18 @@ async def run_all_tests():
     print("Demo staff users available:", len(demo_users))
     assert len(demo_users) >= 3
 
-    login_res = login(LoginRequest(email=profile["email"], password=profile["demo_password"]))
+    assert all(set(user) == {"id", "name", "email", "role", "department", "avatar_color"} for user in demo_users)
     print("Authenticated user:", login_res["user"]["name"], "Role:", login_res["user"]["role"])
     assert login_res["user"]["role"] == "compliance"
     assert "token" in login_res
 
     # Test invalid password rejection
     try:
-        login(LoginRequest(email="jane.compliance@harborline.bank", password="wrongpassword"))
-        assert False, "Should have raised HTTPException"
-    except Exception as e:
-        print("Invalid password rejected as expected:", type(e).__name__)
+        login(LoginRequest(email=profile["email"], password=uuid4().hex))
+    except HTTPException as error:
+        assert error.status_code == 401
+    else:
+        raise AssertionError("Invalid password was accepted")
 
     print("\n=== 11. Testing Customer Support Chatbot (Gemini / Grounded BFSI) ===")
     # 11a: Fee & Waiver inquiry
@@ -202,7 +206,8 @@ async def run_all_tests():
 
     print("\n=== 12. Testing system_overview() & Admin User Management ===")
     admin_profile = next(u for u in demo_users if u["role"] == "admin")
-    admin_scope = {"type": "http", "headers": [(b"authorization", ("Bearer " + admin_profile["token"]).encode())]}
+    admin_login = login(LoginRequest(email=admin_profile["email"], password=os.environ["FINSERVE_ADMIN_PASSWORD"]))
+    admin_scope = {"type": "http", "headers": [(b"authorization", ("Bearer " + admin_login["token"]).encode())]}
     admin_req = Request(admin_scope)
 
     overview = system_overview(admin_req)

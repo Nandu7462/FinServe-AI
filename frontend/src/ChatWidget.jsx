@@ -159,7 +159,7 @@ export default function ChatWidget({ customerId = 'retail-001' }) {
           <div className="trigger-pulse-indicator" />
           <MessageSquare size={20} className="trigger-icon" />
           <div className="trigger-label">
-            <span className="trigger-title">Harborline Support</span>
+            <span className="trigger-title">Support</span>
             <span className="trigger-subtitle">Powered by Gemini AI</span>
           </div>
         </button>

@@ -1,6 +1,6 @@
 import React, {useState, useEffect} from 'react'
 import {
-  Layers3, ShieldCheck, ArrowRight,
+  Layers3, ArrowRight,
   CircleAlert, KeyRound, Building2
 } from 'lucide-react'
 import workspacePicture from './assets/sign-in-workspace.jpg'
@@ -50,26 +50,11 @@ export default function Login({onLogin, children}) {
     }
   }
 
-  function quickLogin(user) {
+  function selectProfile(user) {
     setEmail(user.email)
-    setPassword(user.demo_password)
-    setBusy(true)
+    setPassword('')
     setError('')
-    fetch('/api/auth/login', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({email: user.email, password: user.demo_password})
-    })
-      .then(res => res.json())
-      .then(data => {
-        if (data.token) {
-          onLogin(data.user, data.token)
-        } else {
-          setError(data.detail || 'Sign-in failed')
-        }
-      })
-      .catch(err => setError(err.message))
-      .finally(() => setBusy(false))
+    setMethod('profile-password')
   }
 
   return (
@@ -89,7 +74,7 @@ export default function Login({onLogin, children}) {
         <div className="login-body">
           <div className="login-instructions">
             <h1>Welcome back<span>.</span></h1>
-            <p>Sign in to prepare and review customer communications.</p>
+            <p>{method === 'profile-password' ? 'Enter the password for the selected profile.' : 'Sign in to prepare and review customer communications.'}</p>
           </div>
 
           {error && (
@@ -107,19 +92,18 @@ export default function Login({onLogin, children}) {
               <button
                 type="button"
                 key={id}
-                aria-pressed={method === id}
+                aria-pressed={method === id || (method === 'profile-password' && id === 'profiles')}
                 disabled={busy}
-                onClick={() => { setMethod(id); setError(''); }}
+                onClick={() => { setMethod(id); setPassword(''); setError(''); }}
               >
                 {label}
               </button>
             ))}
           </div>
 
-          {/* Evaluation Profiles: 1-click immediate quick-login without fill credentials */}
           {method === 'profiles' && (
             <div className="demo-users-section">
-              <span className="demo-section-label">CHOOSE A STAFF PROFILE FOR IMMEDIATE EVALUATION:</span>
+              <span className="demo-section-label">Choose a staff profile</span>
               <div className="demo-users-grid">
                 {demoUsers.length === 0 && <p>No evaluation profiles are configured.</p>}
                 {demoUsers.map(u => (
@@ -127,9 +111,8 @@ export default function Login({onLogin, children}) {
                     type="button"
                     key={u.id}
                     className="demo-user-btn"
-                    onClick={() => quickLogin(u)}
+                    onClick={() => selectProfile(u)}
                     disabled={busy}
-                    title={`Click to sign in immediately as ${u.name}`}
                   >
                     <div className="demo-avatar" style={{background: u.avatar_color}}>
                       {u.name.split(' ').map(n => n[0]).join('')}
@@ -149,7 +132,7 @@ export default function Login({onLogin, children}) {
           )}
 
           {/* Staff Sign-in Manual Form */}
-          {method === 'credentials' && (
+          {method !== 'profiles' && (
             <form onSubmit={handleLogin} className="login-form">
               <label>
                 Staff Email Address
@@ -157,6 +140,7 @@ export default function Login({onLogin, children}) {
                   autoComplete="username"
                   type="email"
                   value={email}
+                  readOnly={method === 'profile-password'}
                   onChange={e => setEmail(e.target.value)}
                   placeholder="name@harborline.bank"
                   required
@@ -169,6 +153,7 @@ export default function Login({onLogin, children}) {
                 <input
                   autoComplete="current-password"
                   type="password"
+                  autoFocus={method === 'profile-password'}
                   value={password}
                   onChange={e => setPassword(e.target.value)}
                   placeholder="••••••••"

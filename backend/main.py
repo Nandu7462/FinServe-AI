@@ -232,11 +232,7 @@ SEED_USERS = [
 ]
 
 SEED_USERS = [user for user in SEED_USERS if os.getenv(f"FINSERVE_{user['role'].upper()}_PASSWORD")]
-DEMO_TOKENS = {user["role"]: uuid4().hex for user in SEED_USERS}
-SESSIONS = {
-    DEMO_TOKENS[user["role"]]: {key: value for key, value in user.items() if key != "password_hash"}
-    for user in SEED_USERS
-}
+SESSIONS = {}
 
 
 def get_current_user(request: Request) -> Optional[dict]:
@@ -487,7 +483,7 @@ def get_me(request: Request):
 
 @app.get("/api/auth/users")
 def list_demo_users():
-    """Returns available staff profiles for 1-click quick-login during evaluation."""
+    """List the display details of configured evaluation profiles."""
     return [
         {
             "id": u["id"],
@@ -496,8 +492,6 @@ def list_demo_users():
             "role": u["role"],
             "department": u["department"],
             "avatar_color": u["avatar_color"],
-            "demo_password": os.environ[f"FINSERVE_{u['role'].upper()}_PASSWORD"],
-            "token": DEMO_TOKENS[u["role"]]
         }
         for u in SEED_USERS
     ]
